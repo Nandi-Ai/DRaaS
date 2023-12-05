@@ -22,7 +22,7 @@ update_req_url = settings.url + "/SetCommandStatus"
 # this module will be used to get an instance of the logger object 
 logger = logging.getLogger(__name__)
 
-# Check if the systemd.journal module is available
+# Check if the systemd.journal module is available..
 try:
     from systemd.journal import JournaldLogHandler
 
@@ -42,7 +42,7 @@ except ImportError:
 # optionally set the logging level
 logger.setLevel(logging.DEBUG)
 
-# Dictionary to store credentials for switches
+# Dictionary to store credentials of switches
 credential_dict = {}
 
 # Function to set a value in Redis
@@ -72,7 +72,7 @@ def redis_queue_get():
         logger.error('Error in redis_queue_get: %s', str(e))
         return None
     
-# Function to send a status update to the ServiceNow API
+# Function to send a status or update to ServiceNow API
 def send_status_update(ID, STATUS, OUTPUT):
     payload = json.dumps({"command_id": f"{ID}", "command_status": f"{STATUS}", "command_output": f"{OUTPUT}"})
     answer = requests.post(update_req_url, data=payload, headers={'Content-Type': 'application/json'},
