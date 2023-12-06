@@ -1,6 +1,7 @@
 import redis, requests
 import re, json, math
 import time; from time import * 
+import time as my_time
 import requests; import re; import json; import logging
 from datetime import datetime
 import settings
@@ -60,13 +61,14 @@ def send_status_update(ID, STATUS, OUTPUT):
         logger.error('Error in send_status_update: %s', str(e))
 
 
-def send_health_monitoring_update(mid_name, items_in_queue, items_in_process, Timestamp):
+def send_health_monitoring_update (mid_name, items_in_queue, items_in_process, items_failed,Timestamp):
     try:
         payload = json.dumps(
             {
                 "mid_name": mid_name,
                 "items_in_queue": items_in_queue,
                 "items_in_process": items_in_process,
+                "items_failed": items_failed,
                 "timestamp": Timestamp
             })
         print(payload)
@@ -108,12 +110,19 @@ def redis_queue_push(TASKS):
     except Exception as e:
         logger.error('Error in redis_queue_push: %s', str(e))
 
-
 if __name__ == "__main__":
     while True:
-        tasks_len = len(get_requests())  # Use a different variable name
-        redis_queue_push(get_requests())
+        # Get the tasks from the API
+        tasks = get_requests()
+
+        items_in_progress = sum(1 for task in tasks if task['dr_status'] == 'active')
+        items_failed = sum(1 for task in tasks if task['dr_status'] == 'failed')
         # Format timestamp as HH:MM:SS
-        Timestamp = datetime.now().strftime('%H:%M:%S')
-        send_health_monitoring_update(settings.mid_server, redis_server.llen(queue_name), abs(tasks_len), Timestamp)
+        Timestamp = datetime.now().strftime('%d/%m/%Y %I:%M:%S %p')
+
+        send_health_monitoring_update(settings.mid_server, len(tasks) , items_in_progress, items_failed ,Timestamp)
+        
+        # Push tasks to the Redis queue
+        redis_queue_push(tasks)
+        # Sleep for 10 seconds before the next iteration
         sleep(10)

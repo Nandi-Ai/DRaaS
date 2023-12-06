@@ -85,7 +85,7 @@ if [ "$(git rev-parse HEAD)" == "$(git rev-parse origin/main)" ]; then
 else
     # Fetch and reset to the remote main branch
     git fetch origin main
-    git reset --hard origin/main
+    git pull origin/main
 fi
 
 # Activate virtual environment if it exists
