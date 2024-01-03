@@ -29,14 +29,15 @@ class SSHConnection:
         else:
             print("Shell not opened.")
 
-    def create_vlan(self, physical_interface, vlan_id):
+    def create_vlan(self, physical_interface, vlan_ids):
         try:
-            command = f"add interface {physical_interface} vlan {vlan_id}"
-            self.send_shell(command)
-            time.sleep(1)
-            self.send_shell('save config')
-            time.sleep(2)
-            print(f"VLAN {vlan_id} added successfully to interface {physical_interface}.")
+            for vlan_id in vlan_ids:
+                command = f"add interface {physical_interface} vlan {vlan_id}"
+                self.send_shell(command)
+                time.sleep(1)
+                self.send_shell('save config')
+                time.sleep(2)
+                print(f"VLAN {vlan_id} added successfully to interface {physical_interface}.")
         except Exception as e:
             print(f"Error occurred while creating VLAN: {e}")
 
@@ -118,12 +119,23 @@ def parse_gaia_route_output(output):
                 routes.append(route_entry)
     return routes
 
-def add_gaia_vlan(ip, user, password , physical_interface, vlan_id):
+def expand_vlan_ranges(vlan_list):
+    expanded = []
+    for item in vlan_list:
+        if '-' in item:
+            start, end = item.split('-')
+            expanded.extend(range(int(start), int(end) + 1))
+        else:
+            expanded.append(int(item))
+    return expanded
+
+def add_gaia_vlan(ip, user, password, physical_interface, vlan_list):
     connection = SSHConnection(ip, user, password)
     connection.open_shell()
     time.sleep(1)
-
-    connection.create_vlan(physical_interface, vlan_id)
+    
+    expanded_vlans = expand_vlan_ranges(vlan_list)
+    connection.create_vlan(physical_interface, expanded_vlans)
     connection.close_connection()
 
 def remove_gaia_vlan(ip, user, password , physical_interface, vlan_id):
@@ -163,9 +175,7 @@ if __name__ == "__main__":
     remove_gaia_vlan(gaia_ip, gaia_username, gaia_password, "eth0", 18)
 
     gaia_interface_info = get_gaia_interface_info(gaia_ip, gaia_username, gaia_password)
-    #print("interfaces" + gaia_interface_info)
     gaia_route_info = get_gaia_route_info(gaia_ip, gaia_username, gaia_password)
-    #print("routes" + gaia_route_info)
 
     interface_dict = json.loads(gaia_interface_info)
     route_dict = json.loads(gaia_route_info)
