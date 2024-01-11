@@ -173,6 +173,7 @@ def main():
                         if not connected:
                             # If failed to connect after 5 attempts, send a status update to ServiceNow
                             error_message = f"Failed to establish SSH connection to {req_switch_ip} after {SSHClient.MAX_RETRIES} attempts."
+                            redis_set(req_id, "failed", error_message)
                             send_status_update(req_id, "failed", error_message)
                             # Update the credentials with a "failed" status if not already present
                             continue

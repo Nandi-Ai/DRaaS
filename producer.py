@@ -83,7 +83,8 @@ def send_health_monitoring_update (mid_name, items_in_queue, items_in_process, i
 def redis_queue_push(TASKS):
     try:
         for TASK in TASKS:
-            if bool(re.search('(active|failed)', TASK["dr_status"])):
+            #if bool(re.search('(active|failed)', TASK["dr_status"])):
+            if TASK["dr_status"] == "active":
                 kv_status = redis_server.get(TASK["record_id"])
                 if kv_status is not None:
                     kv_status = json.loads(kv_status.decode())
