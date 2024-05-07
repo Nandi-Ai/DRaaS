@@ -14,7 +14,7 @@ redis_server = redis.Redis(host='localhost', port=6379, db=0)
 # Set the value of Enabled to Redis when the script starts
 redis_server.set("Enabled", int(glv.Enabled))
 
-queue_name = glv.queue_name
+active_tasks = glv.active_tasks
 failed_tasks=glv.failed_tasks
 completed_tasks=glv.completed_tasks
 incompleted_tasks = glv.incompleted_tasks
@@ -83,45 +83,39 @@ def cleanup_redis():
             if task:
                 redis_server.delete(task)
 
+#Getting singel command and pushing it to redis (active,failed,completed)
 def redis_queue_push(task):
     record_id=task["record_id"]
-    print(f"record_id: {record_id}")
+    record_status = task["dr_status"]
     try:
-            if bool(re.search('(active|failed)', task["dr_status"])):
-                print(task["record_id"])
-                job_status = redis_server.get(task["record_id"])
-                print("job_status: ",job_status)
-                print("recieved task:",task)
+            if bool(re.search('(active|failed|completed)', record_status)):
+                # Convert the dictionary to a JSON string
+                # You need to convert the dictionary (task) into a format that Redis understands. 
+                # Two common options are JSON and pickle
+                task_json = json.dumps(task)
 
-                if job_status is not None and job_status.strip():
-                    try:
-                        job_status=json.loads(job_status.decode())
-                    except json.JSONDecodeError as json_error:
-                        logger.error("Error decoding JSON for record_id: %s. Error: %s", record_id, str(json_error))
-                        return  # Exit the function if JSON decoding fails
-                    
-                    if "completed" in job_status["status"]:
-                        print("completed")
-                        output = re.sub("      ", "\n", job_status["output"])
-                        send_status_update(task["record_id"], job_status["status"], output)
-                        redis_server.rpush(completed_tasks, str(task))
+                #t parameter is task in queue
+                if "completed"in record_status:
+                    print("completed")
+                    #completed_records = redis_server.lrange("completed_tasks", 0, -1)
+                    #if record_id not in [json.loads(t)["record_id"] for t in redis_server.lrange("completed_tasks",0,-1)]:
+                    redis_server.rpush(completed_tasks, task_json)
+    
+                #Active task
+                elif "active" in record_status:
+                    print(f"Job status is {record_status} waiting to be executed")
+                    #if record_id not in [json.loads(t)["record_id"] for t in redis_server.lrange("active_tasks",0,-1)]:
+                    redis_server.rpush(active_tasks, task_json)
 
-                    #Active task
-                    elif "active" in job_status["status"]:
-                        print(f"Job status is {job_status} waiting to be executed")
-                        redis_server.rpush(queue_name, str(task))
+                #failed task
+                elif "failed" in record_status:
+                    #if record_id not in [json.loads(t)["record_id"] for t in redis_server.lrange("failed_tasks",0,-1)]:
+                    redis_server.rpush(failed_tasks, task_json)
 
-                    #failed task
-                    if task["record_id"] not in [json.loads(t)["record_id"] for t in redis_server.lrange(failed_tasks,0,-1)]:
-                        redis_server.rpush(failed_tasks, json.dumps(task))
-
-                else:
-                     logger.warning("Job status is empty or None for record_id: %s", task["record_id"])
-                    #  print(f"else: {job_status}")
-                    #  redis_server.rpush(queue_name, str(task))
-                    #  redis_server.set(record_id, "active")
-                    #  logger.info('Added %s to queue', task["record_id"])
-                    #  print(f'added {task["record_id"]} to queue')
+            else:
+                logger.warning("Job status is empty or None for record_id: %s", record_id)
+                print(f"else: {record_status}")
+                logger.info('Not added to queue because status is not active/completed/failed', record_id)
 
     except Exception as e:
         #send_logs_to_api(f'Error in redis_queue_push: {str(e)}', 'error', settings.mid_server, datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'))
@@ -131,26 +125,24 @@ def redis_queue_push(task):
 last_cleanup_time = None
 if __name__ == "__main__":
     while True:
-        enabled_value = redis_server.get("Enabled")
-        if enabled_value and not bool(int(enabled_value.decode())):
-            logger.info("Processing is disabled. Waiting for 'Enabled' to be True.")
-            send_logs_to_api(f'Processing is disabled. Waiting for Enabled to be True.', 'info', settings.mid_server, datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'))
-            sleep(5)
-            continue
+        # enabled_value = redis_server.get("Enabled")
+        # if enabled_value and not bool(int(enabled_value.decode())):
+        #     logger.info("Processing is disabled. Waiting for 'Enabled' to be True.")
+        #     send_logs_to_api(f'Processing is disabled. Waiting for Enabled to be True.', 'info', settings.mid_server, datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'))
+        #     sleep(5)
+        #     continue
 
-        #if last_cleanup_time is None or (datetime.now() - last_cleanup_time).seconds >= 3600:
-        #    cleanup_redis()
-        #    send_logs_to_api(f'Cleaning up the failed redis queue', 'info', settings.mid_server, datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'))
-        #    last_cleanup_time = datetime.now()
-
+        #Getting all commands from ServiceNow [tasks=array of commands]
         tasks = get_requests()
 
         for task in tasks:
-            if task['mid_name'] == settings.mid_server:
+            mid_name = task['mid_name']
+            if mid_name == settings.mid_server:
                 record_id=task["record_id"]
                 # Push task to the Redis queue
                 redis_queue_push(task)
-    
+
+        #tasks_for_mid_server number of all commands per mid_server -- Array of objects
         tasks_for_mid_server = [task for task in tasks if task['mid_name'] == settings.mid_server]
         items_in_queue = len(tasks_for_mid_server)
         items_in_progress = sum(1 for task in tasks_for_mid_server if task.get('dr_status') == 'active')
