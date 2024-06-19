@@ -1,6 +1,7 @@
 import redis, requests
 import re, json, math
 import time; from time import * 
+from time import sleep
 import time as my_time
 import requests; import re; import json; import logging
 from datetime import datetime
@@ -12,9 +13,9 @@ settings.init()
 redis_server = redis.Redis(host='localhost', port=6379, db=0)
 
 # Set the value of Enabled to Redis when the script starts
-redis_server.set("Enabled", int(glv.Enabled))
+#redis_server.set("Enabled", int(glv.Enabled))
 
-queue_name = glv.queue_name
+active_tasks = glv.active_tasks
 failed_tasks=glv.failed_tasks
 completed_tasks=glv.completed_tasks
 incompleted_tasks = glv.incompleted_tasks
@@ -86,62 +87,60 @@ def cleanup_redis():
 def redis_queue_push(task):
     record_id=task["record_id"]
     print(f"record_id: {record_id}")
+    print( task["dr_status"])
     try:
-            if bool(re.search('(active|failed)', task["dr_status"])):
+            if bool(re.search('(active|failed|completed)', task["dr_status"])):
                 print(task["record_id"])
                 job_status = redis_server.get(task["record_id"])
-                print("job_status: ",job_status)
+                print("job_status: ", job_status)
                 print("recieved task:",task)
-
-                if job_status is not None and job_status.strip():
+                if job_status != None:
+                    print(job_status)
                     try:
-                        job_status=json.loads(job_status.decode())
+                        job_status = json.loads(job_status.decode())
                     except json.JSONDecodeError as json_error:
                         logger.error("Error decoding JSON for record_id: %s. Error: %s", record_id, str(json_error))
-                        return  # Exit the function if JSON decoding fails
-                    
+                        return
+
                     if "completed" in job_status["status"]:
                         print("completed")
-                        output = re.sub("      ", "\n", job_status["output"])
+                        output = re.sub("       ", "\n", job_status["output"])
                         send_status_update(task["record_id"], job_status["status"], output)
                         redis_server.rpush(completed_tasks, str(task))
-
-                    #Active task
+                    #Active task   
                     elif "active" in job_status["status"]:
                         print(f"Job status is {job_status} waiting to be executed")
-                        redis_server.rpush(queue_name, str(task))
+                        redis_server.rpush(active_tasks, str(task))
 
-                    #failed task
-                    if task["record_id"] not in [json.loads(t)["record_id"] for t in redis_server.lrange(failed_tasks,0,-1)]:
-                        redis_server.rpush(failed_tasks, json.dumps(task))
-
+                    elif "failed" in  job_status["status"]:
+                        if task["record_id"] not in  [json.loads(t)["record_id"] for t in redis_server.lrange(failed_tasks,0,-1)]:
+                            redis_server.rpush(failed_tasks, json.dumps(task))
                 else:
-                     logger.warning("Job status is empty or None for record_id: %s", task["record_id"])
-                    #  print(f"else: {job_status}")
-                    #  redis_server.rpush(queue_name, str(task))
-                    #  redis_server.set(record_id, "active")
-                    #  logger.info('Added %s to queue', task["record_id"])
-                    #  print(f'added {task["record_id"]} to queue')
+                    if  task["dr_status"] == "active":
+                         redis_server.rpush(active_tasks, str(task))
+                    elif  task["dr_status"] == "completed":
+                        redis_server.rpush(completed_tasks, str(task))
+                    elif  task["dr_status"] == "failed":
+                        redis_server.rpush(failed_tasks, json.dumps(task))
+            else:
+                logger.warning("Job status is empty or None for record_id: %s", record_id)
+                print(f"status: {job_status}")
+                logger.info('Not added to queue because status is not Active/Failed/Completed')
 
     except Exception as e:
         #send_logs_to_api(f'Error in redis_queue_push: {str(e)}', 'error', settings.mid_server, datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'))
         logger.error('Error in redis_queue_push: %s', str(e))
-
+        
 
 last_cleanup_time = None
 if __name__ == "__main__":
     while True:
-        enabled_value = redis_server.get("Enabled")
-        if enabled_value and not bool(int(enabled_value.decode())):
-            logger.info("Processing is disabled. Waiting for 'Enabled' to be True.")
-            send_logs_to_api(f'Processing is disabled. Waiting for Enabled to be True.', 'info', settings.mid_server, datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'))
-            sleep(5)
-            continue
-
-        #if last_cleanup_time is None or (datetime.now() - last_cleanup_time).seconds >= 3600:
-        #    cleanup_redis()
-        #    send_logs_to_api(f'Cleaning up the failed redis queue', 'info', settings.mid_server, datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'))
-        #    last_cleanup_time = datetime.now()
+        #enabled_value = redis_server.get("Enabled")
+        #if enabled_value and not bool(int(enabled_value.decode())):
+        #    logger.info("Processing is disabled. Waiting for 'Enabled' to be True.")
+        #    send_logs_to_api(f'Processing is disabled. Waiting for Enabled to be True.', 'info', settings.mid_server, datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'))
+        #    sleep(5)
+        #    continue
 
         tasks = get_requests()
 

@@ -12,7 +12,7 @@ config.read('./config/parameters.ini')
 
 logger = logging.getLogger(__name__)
 redis_server = redis.Redis()
-queue_name = glv.queue_name
+active_tasks = glv.active_tasks
 completed_tasks = glv.completed_tasks
 failed_tasks = glv.failed_tasks
 incompleted_tasks = glv.incompleted_tasks
@@ -166,7 +166,7 @@ def redis_set(KEY="", VALUE="", OUTPUT=""):
             elif task_status == "failed":
                 redis_server.rpush(failed_tasks, KEY)
             elif task_status == "active":
-                redis_server.rpush(queue_name, KEY)
+                redis_server.rpush(active_tasks, KEY)
         else:
             logger.warning('No information found for key: %s', KEY)
             send_logs_to_api(f'No information found for key: {KEY}', 'warning', settings.mid_server, datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'))

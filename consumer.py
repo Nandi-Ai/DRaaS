@@ -8,7 +8,7 @@ settings.init()
 
 # Create a Redis server connections.
 redis_server = redis.Redis()
-queue_name = glv.queue_name
+active_tasks = glv.active_tasks
 incompleted_tasks = glv.incompleted_tasks
 completed_tasks = glv.completed_tasks
 credential_dict = glv.credential_dict
@@ -42,9 +42,9 @@ except ImportError:
     logging.basicConfig(level=logging.DEBUG, format=f'%(asctime)s - %(levelname)-8s - %(message)s', datefmt=time_format)
 
 # Function to get the next request from the Redis queue
-def redis_queue_get(queue_name):
+def redis_queue_get(active_tasks):
     try:
-        req = redis_server.lpop(queue_name)
+        req = redis_server.lpop(active_tasks)
         print(req)
         if req is not None:
             logger.info('Redis queue get - Request: %s', req.decode())
@@ -76,20 +76,21 @@ def main():
     #max_wait_time = 100 * 60  # Maximum wait time in seconds (30 minutes)
     #start_time = time()
     while True:
-        #start_time = time()
         while True:
-            q_len = redis_server.llen(queue_name)
+            q_len = redis_server.llen(active_tasks)
             if q_len > 0:
-                rqst = redis_queue_get(queue_name)
+                rqst = redis_queue_get(active_tasks)
                 break
             #if time() - start_time > max_wait_time:
                 #print("Maximum wait time reached. Exiting.")
                 #return  # Exit the program after waiting for the maximum time
             print("Queue is empty. Waiting...")
             logger.info("Queue is empty. Waiting...." )
-            sleep(10)  # Wait for 10 seconds and check the queue again
-
+            sleep(5)  # Wait for 10 seconds and check the queue again
+        #rqst = redis_queue_get(queue_name)
+        #q_len = redis_server.llen(queue_name)
         print(f'Queue length: {q_len}')
+        print(f'rqst is: {rqst}')
         if rqst is not None:
                 fix_quotes = re.sub("'", "\"", rqst)
                 no_none = re.sub("None", "\"\"", fix_quotes)
@@ -103,13 +104,13 @@ def main():
                 discovery=json_req["discovery"]
                 destination=json_req["destination"]
                 gateway=json_req["gateway"]
-
+                task_status = json_req["dr_status"]
                 vlan_ip = json_req["ip"]
                 vlan_subnet = json_req["subnet"]
                 comments = json_req["description"]
                 comments = f'"{comments}"'
                 priority = json_req["priority"]
-
+        #        task_status = json_req["dr_status"]
                 api_status = get_id_status(req_id)
                 api_dr_status = api_status[0]['dr_status']
 
@@ -125,11 +126,11 @@ def main():
         else:
                 print("Queue is empty. Waiting...")
                 logger.info("Queue is empty. Waiting...")
-
-        task_status = redis_server.get(req_id).decode()
-        if task_status is None:
-                redis_set(req_id, "active")
-                task_status = redis_server.get(req_id)
+        
+        #task_status = redis_server.get(req_id).decode()
+        #if task_status is None:
+        #        redis_set(req_id, "active")
+        #        task_status = redis_server.get(req_id)
 
         if "active" in task_status:
                 redis_server.set(name="current_task", value=json.dumps({"id": req_id, "switch_ip": req_switch_ip, "command": req_cmd}))
@@ -346,7 +347,7 @@ def main():
         elif "completed" in str(task_status):
                 redis_server.rpush(completed_tasks, str(json_req))
                 continue
-        sleep(10)
+
 
 if __name__ == "__main__":
     main()

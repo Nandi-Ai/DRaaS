@@ -37,5 +37,3 @@ def init():
         switch_info_url = config['DEFAULT']['switch_info_url']
     else:
         switch_info_url = os.environ.get('switch_info_url')
-
-
