@@ -144,8 +144,10 @@ if __name__ == "__main__":
         #    last_cleanup_time = datetime.now()
 
         tasks = get_requests()
+        print("aqaa")
 
         for task in tasks:
+            print("aqaa1")
             if task['mid_name'] == settings.mid_server:
                 record_id=task["record_id"]
                 # Push task to the Redis queue
