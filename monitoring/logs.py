@@ -1,50 +1,51 @@
-# import subprocess
-# import re
 
-# def get_parsed_logs(service_name, lines=100):
-#     try:
-#         # Retrieve logs from journalctl
-#         result = subprocess.run(['journalctl', '-u', service_name, '--lines', str(lines)], capture_output=True, text=True, check=True)
-#         logs = result.stdout
-        
-#         # Parse logs
-#         log_entries = {
-#             'error': [],
-#             'warning': [],
-#             'info': []
-#         }
-        
-#         for line in logs.splitlines():
-#             if 'error' in line.lower():
-#                 log_entries['error'].append(line)
-#             elif 'warning' in line.lower():
-#                 log_entries['warning'].append(line)
-#             elif 'info' in line.lower():
-#                 log_entries['info'].append(line)
-        
-#         return log_entries
+import requests
+import psutil
+
+def get_proc_data(servicename):
+    try:
+        for proc in psutil.process_iter(['pid', 'cmdline']):
+            cmdline = proc.info.get('cmdline', [])
+            if cmdline and servicename in ' '.join(cmdline):
+                pid = proc.info['pid']
+                try:
+                    process = psutil.Process(pid)
+                    cpu_usage = process.cpu_percent(interval=1)
+                    memory_info = process.memory_info()
+                    memory_usage_mb = memory_info.rss / (1024 * 1024)
+                    return {
+                        'running': True,
+                        'pid': pid,
+                        'cpu_usage': cpu_usage,
+                        'memory_usage_mb': memory_usage_mb,
+                    }
+                except Exception as err:
+                    return {"error1": str(err)}
+        # Return an error if no process found
+        return {"error": "No process found with the given service name"}
+    except Exception as err:
+        return {"error2": str(err)}
+
+def send_data_to_api(message, severity, timestamp, servicename):
+    url = "http://localhost:5000/receive"
+    headers = {'Content-Type': 'application/json'}
     
-#     except subprocess.CalledProcessError as e:
-#         return {"error": [f"Error: {e}"]}
-
-# from flask import Flask, jsonify, Response
-# import subprocess
-# import logging
-# import time
-
-# app = Flask(__name__)
-
-# @app.route('/logs', methods=['GET'])
-# def stream_logs():
-#     def generate():
-#         # Use journalctl to read logs for the specific service
-#         command = ['journalctl', '-u', 'producer.service', '-f', '-o', 'cat']
-#         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        
-#         for line in iter(process.stdout.readline, b''):
-#             yield f"data: {line.decode('utf-8')}\n\n"
+    service_proc_data = get_proc_data(servicename)
+    print(service_proc_data)  # Debug print
     
-#     return Response(generate(), mimetype='text/event-stream')
+    msg = {
+        "service_name": servicename,  # Changed to match the Flask endpoint
+        "severity": severity,
+        "time_sent": timestamp,
+        "service_log": message,
+        "service_process_data": service_proc_data,
+    }
+    
+    try:
+        response = requests.post(url, json=msg, headers=headers)
+        print(response.status_code)
+        print(response.json())  # Print response JSON for debugging
+    except requests.RequestException as err:
+        print("Error while sending data to API:", err)
 
-# if __name__ == '__main__':
-#     app.run(debug=True, threaded=True)
+

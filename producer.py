@@ -7,7 +7,13 @@ from datetime import datetime
 import glv; from glv import Enabled
 import settings
 from functions import *
+from monitoring import logs
+
 settings.init()
+
+# Test ========================
+service_name = "producer"
+
 
 redis_server = redis.Redis(host='localhost', port=6379, db=0)
 
@@ -135,6 +141,9 @@ if __name__ == "__main__":
         if enabled_value and not bool(int(enabled_value.decode())):
             logger.info("Processing is disabled. Waiting for 'Enabled' to be True.")
             send_logs_to_api(f'Processing is disabled. Waiting for Enabled to be True.', 'info', settings.mid_server, datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'))
+           
+            logs.send_data_to_api('Processing is disabled. Waiting for Enabled to be True.', 'info', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
+            
             sleep(5)
             continue
 
@@ -144,10 +153,8 @@ if __name__ == "__main__":
         #    last_cleanup_time = datetime.now()
 
         tasks = get_requests()
-        print("aqaa")
 
         for task in tasks:
-            print("aqaa1")
             if task['mid_name'] == settings.mid_server:
                 record_id=task["record_id"]
                 # Push task to the Redis queue
@@ -162,5 +169,11 @@ if __name__ == "__main__":
 
         logger.info("%s, %s, %s, %s, %s, %s", settings.mid_server, items_in_queue, items_in_progress, items_failed, items_incomplete, Timestamp)        
 
+        logs.send_data_to_api(f'"items_in_queue": {items_in_queue} "items_in_progress": {items_in_progress} "items_failed": {items_failed} "items_incomplete": {items_incomplete}', 
+                              'info',
+                              datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), 
+                              service_name)
+
+        
         send_health_monitoring_update(settings.mid_server, items_in_queue, items_in_progress, items_failed, items_incomplete, Timestamp)
         sleep(10)

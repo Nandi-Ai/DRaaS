@@ -4,6 +4,10 @@ import gaia_ssh_connect
 import logging, time
 import settings
 from settings import *
+
+import psutil # test
+from monitoring import logs
+
 settings.init()
 
 # Create a Redis server connections.
@@ -19,6 +23,11 @@ get_cmds_url = settings.url + "/getCommands"
 update_req_url = settings.url + "/SetCommandStatus"
 get_id_url = settings.url + "/getCommandByID"
 Managment_Logs = settings.url + "/postSwitchManagmentLogs"
+
+
+# Test  =========================
+service_name = 'consumer'
+
 
 # this module will be used to get an instance of the logger object 
 logger = logging.getLogger(__name__)
@@ -87,9 +96,17 @@ def main():
                 #return  # Exit the program after waiting for the maximum time
             print("Queue is empty. Waiting...")
             logger.info("Queue is empty. Waiting...." )
+            # sending data to flask api
+            logs.send_data_to_api("Queue is empty. Waiting...", 'info', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
+            
+            # response = requests.post(url, data="Queue is empty. Waiting....")
+
             sleep(10)  # Wait for 10 seconds and check the queue again
 
         print(f'Queue length: {q_len}')
+        
+        logs.send_data_to_api(f'Queue length: {q_len}', 'info', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
+        
         if rqst is not None:
                 fix_quotes = re.sub("'", "\"", rqst)
                 no_none = re.sub("None", "\"\"", fix_quotes)
