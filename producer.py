@@ -74,10 +74,14 @@ def send_health_monitoring_update (mid_name, items_in_queue, items_in_process, i
         
         answer = requests.post(update_status_url, data=payload,
                                headers={'Content-Type': 'application/json'}, auth=(settings.username, settings.password)).json()
+
         #send_logs_to_api(f'Sended info to send_health_monitoring_update: {payload}', 'info', settings.mid_server, datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), '123')
     except Exception as e:
         send_logs_to_api(f'Error in send_health_monitoring_update: {str(e)}', 'error', settings.mid_server, datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'))
         logger.error('Error in send_health_monitoring_update: %s', str(e))
+        
+
+
 
 def cleanup_redis():
     # Cleanup failed tasks
@@ -98,16 +102,21 @@ def redis_queue_push(task):
                 job_status = redis_server.get(task["record_id"])
                 print("job_status: ",job_status)
                 print("recieved task:",task)
+                logs.send_data_to_flask(0, f'recived task {task}', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)                                                                
 
                 if job_status is not None and job_status.strip():
                     try:
                         job_status=json.loads(job_status.decode())
                     except json.JSONDecodeError as json_error:
                         logger.error("Error decoding JSON for record_id: %s. Error: %s", record_id, str(json_error))
+                        logs.send_data_to_flask(1, f'Error decoding JSON for record_id: {record_id}, Error: {str(json_error)}...', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
                         return  # Exit the function if JSON decoding fails
                     
                     if "completed" in job_status["status"]:
+
                         print("completed")
+                        logs.send_data_to_flask(0, f'completed', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
+                        
                         output = re.sub("      ", "\n", job_status["output"])
                         send_status_update(task["record_id"], job_status["status"], output)
                         redis_server.rpush(completed_tasks, str(task))
@@ -123,6 +132,8 @@ def redis_queue_push(task):
 
                 else:
                      logger.warning("Job status is empty or None for record_id: %s", task["record_id"])
+                     logs.send_data_to_flask(2, 'job status is empty or none record_id', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
+
                     #  print(f"else: {job_status}")
                     #  redis_server.rpush(queue_name, str(task))
                     #  redis_server.set(record_id, "active")
@@ -132,6 +143,8 @@ def redis_queue_push(task):
     except Exception as e:
         #send_logs_to_api(f'Error in redis_queue_push: {str(e)}', 'error', settings.mid_server, datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'))
         logger.error('Error in redis_queue_push: %s', str(e))
+        logs.send_data_to_flask(1, 'Error in redis queue push', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
+
 
 
 last_cleanup_time = None
@@ -140,10 +153,7 @@ if __name__ == "__main__":
         enabled_value = redis_server.get("Enabled")
         if enabled_value and not bool(int(enabled_value.decode())):
             logger.info("Processing is disabled. Waiting for 'Enabled' to be True.")
-            send_logs_to_api(f'Processing is disabled. Waiting for Enabled to be True.', 'info', settings.mid_server, datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'))
-           
-            logs.send_data_to_api('Processing is disabled. Waiting for Enabled to be True.', 'info', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
-            
+            send_logs_to_api(f'Processing is disabled. Waiting for Enabled to be True.', 'info', settings.mid_server, datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'))            
             sleep(5)
             continue
 
@@ -153,6 +163,7 @@ if __name__ == "__main__":
         #    last_cleanup_time = datetime.now()
 
         tasks = get_requests()
+        logs.send_data_to_flask(0, 'Getting Tasks', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
 
         for task in tasks:
             if task['mid_name'] == settings.mid_server:
@@ -169,11 +180,7 @@ if __name__ == "__main__":
 
         logger.info("%s, %s, %s, %s, %s, %s", settings.mid_server, items_in_queue, items_in_progress, items_failed, items_incomplete, Timestamp)        
 
-        logs.send_data_to_api(f'"items_in_queue": {items_in_queue} "items_in_progress": {items_in_progress} "items_failed": {items_failed} "items_incomplete": {items_incomplete}', 
-                              'info',
-                              datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), 
-                              service_name)
-
-        
+        logs.send_data_to_flask(0, f'service up', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
+                                                                                                       
         send_health_monitoring_update(settings.mid_server, items_in_queue, items_in_progress, items_failed, items_incomplete, Timestamp)
         sleep(10)

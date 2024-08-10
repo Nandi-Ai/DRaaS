@@ -21,31 +21,33 @@ def get_proc_data(servicename):
                     }
                 except Exception as err:
                     return {"error1": str(err)}
-        # Return an error if no process found
         return {"error": "No process found with the given service name"}
     except Exception as err:
         return {"error2": str(err)}
 
-def send_data_to_api(message, severity, timestamp, servicename):
-    url = "http://localhost:5000/receive"
+def send_data_to_flask(status, message,  timestamp, servicename):
+    url = "http://localhost:5001/receive"
     headers = {'Content-Type': 'application/json'}
     
     service_proc_data = get_proc_data(servicename)
-    print(service_proc_data)  # Debug print
+    print(service_proc_data)  
     
     msg = {
-        "service_name": servicename,  # Changed to match the Flask endpoint
-        "severity": severity,
+        "service_name": servicename, 
         "time_sent": timestamp,
-        "service_log": message,
+        "service_status": status,
+        "log_message": message,
         "service_process_data": service_proc_data,
     }
     
     try:
         response = requests.post(url, json=msg, headers=headers)
         print(response.status_code)
-        print(response.json())  # Print response JSON for debugging
+        print(response.json())
     except requests.RequestException as err:
         print("Error while sending data to API:", err)
 
+
+
+        
 
