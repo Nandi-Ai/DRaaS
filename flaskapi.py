@@ -21,6 +21,7 @@ except Exception as err:
     exit(1)
 
 
+
 def get_queue_status():
     queue = Queue(queue_name, connection=redis_conn)
     queue_status = {
@@ -49,6 +50,7 @@ def get_queue_status():
             }
             queue_status['jobs'].append(job_info)
 
+            # Count jobs based on their status
             if job.is_failed:
                 queue_status['number_of_failed_jobs'] += 1
             elif job.is_finished:
@@ -56,7 +58,7 @@ def get_queue_status():
             elif job.get_status() == 'started':
                 queue_status['number_of_in_progress_jobs'] += 1
     except Exception as err:
-        print("Error while getting data from redis")
+        print(f"Error while getting data from redis: {err}")
     
     return queue_status
 
