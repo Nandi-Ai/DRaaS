@@ -114,7 +114,7 @@ def redis_queue_push(task):
                     if "completed" in job_status["status"]:
 
                         print("completed")
-                        send_logs.send_data_to_flask(0, f'completed', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
+                        send_logs.send_data_to_flask(0, f'completed...', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
                         
                         output = re.sub("      ", "\n", job_status["output"])
                         send_status_update(task["record_id"], job_status["status"], output)
@@ -131,7 +131,7 @@ def redis_queue_push(task):
 
                 else:
                      logger.warning("Job status is empty or None for record_id: %s", task["record_id"])
-                     send_logs.send_data_to_flask(2, 'job status is empty or none record_id', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
+                     send_logs.send_data_to_flask(2, 'watning job status is empty or none record_id', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
 
                     #  print(f"else: {job_status}")
                     #  redis_server.rpush(queue_name, str(task))
@@ -162,7 +162,7 @@ if __name__ == "__main__":
         #    last_cleanup_time = datetime.now()
 
         tasks = get_requests()
-        send_logs.send_data_to_flask(0, 'Getting Tasks', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
+        send_logs.send_data_to_flask(0, 'Getting Tasks...', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
 
         for task in tasks:
             if task['mid_name'] == settings.mid_server:
@@ -179,7 +179,7 @@ if __name__ == "__main__":
 
         logger.info("%s, %s, %s, %s, %s, %s", settings.mid_server, items_in_queue, items_in_progress, items_failed, items_incomplete, Timestamp)        
 
-        send_logs.send_data_to_flask(0, f'Service up', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
+        send_logs.send_data_to_flask(0, f'Service up...', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
                                                                                                        
         # send_health_monitoring_update(settings.mid_server, items_in_queue, items_in_progress, items_failed, items_incomplete, Timestamp)
         sleep(10)

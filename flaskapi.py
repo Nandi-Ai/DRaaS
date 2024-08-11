@@ -6,7 +6,9 @@ from functions import send_logs_to_api
 
 
 settings.init()
+
 update_status_url= settings.url + "/postHealthMonitoring"
+
 queue_name = 'api_req_queue'
 
 app = Flask(__name__)
@@ -23,11 +25,11 @@ def get_queue_status():
     queue = Queue(queue_name, connection=redis_conn)
     queue_status = {
         'queue_name': queue_name,
-        'number_of_failed_jobs': 0,
-        'number_of_in_progress_jobs': 0,
-        'number_of_finished_jobs': 0,
         'queue_length': len(queue),
         'jobs': [],
+        'number_of_failed_jobs': 0,
+        'number_of_in_progress_jobs': 0,
+        'number_of_finished_jobs': 0
     }
     try:
         job_ids = queue.job_ids
@@ -55,7 +57,6 @@ def get_queue_status():
                 queue_status['number_of_in_progress_jobs'] += 1
     except Exception as err:
         print("Error while getting data from redis")
-        return {"Error": str(err)}
     
     return queue_status
 
@@ -64,12 +65,12 @@ def send_health_monitoring_update (producer, consumer):
     try:
         payload =(
             {
+                "mid_name": settings.mid_server,
+                "queue": data,
                 "services": {
                     "producer": producer,
                     "consumer": consumer
-                },
-                "mid_name": settings.mid_server,
-                "queue": data
+                }
             })
         print(payload)
         # Check if payload is empty
