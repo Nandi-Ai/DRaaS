@@ -179,7 +179,7 @@ if __name__ == "__main__":
 
         logger.info("%s, %s, %s, %s, %s, %s", settings.mid_server, items_in_queue, items_in_progress, items_failed, items_incomplete, Timestamp)        
 
-        send_logs.send_data_to_flask(0, f'Service up...', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
+        # send_logs.send_data_to_flask(0, f'Service up...', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
                                                                                                        
         # send_health_monitoring_update(settings.mid_server, items_in_queue, items_in_progress, items_failed, items_incomplete, Timestamp)
         sleep(10)
