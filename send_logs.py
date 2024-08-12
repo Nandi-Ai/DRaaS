@@ -1,7 +1,7 @@
 import requests
 import psutil
 
-url = "http://localhost:5001/receive"
+url = "http://localhost:5050/receive"
 headers = {'Content-Type': 'application/json'}
 
 # using psutil to get info for each service. 
@@ -17,7 +17,6 @@ def get_proc_data(servicename):
                     memory_info = process.memory_info()
                     memory_usage_mb = memory_info.rss / (1024 * 1024)
                     return {
-                        'running': True,
                         'pid': pid,
                         'cpu_usage': cpu_usage,
                         'memory_usage_mb': memory_usage_mb,
@@ -35,7 +34,7 @@ def send_data_to_flask(status, message,  timestamp, servicename):
         "service_name": servicename, 
         "time_sent": timestamp,
         "service_status": status,
-        "log_message": message,
+        "last_log_message": message,
         "service_process_data": service_proc_data,
     }
     try:
@@ -43,8 +42,3 @@ def send_data_to_flask(status, message,  timestamp, servicename):
         print(response.status_code, "---", response.json())
     except requests.RequestException as err:
         print("Error while sending data to API:", err)
-
-
-
-        
-
