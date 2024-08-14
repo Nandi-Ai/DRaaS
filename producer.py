@@ -19,7 +19,7 @@ redis_server = redis.Redis(host='localhost', port=6379, db=0)
 # Set the value of Enabled to Redis when the script starts
 redis_server.set("Enabled", int(glv.Enabled))
 
-queue_name = glv.queue_name
+queue_name = glv.api_queue_name
 failed_tasks=glv.failed_tasks
 completed_tasks=glv.completed_tasks
 incompleted_tasks = glv.incompleted_tasks
