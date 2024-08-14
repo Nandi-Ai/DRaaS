@@ -3,6 +3,7 @@ from datetime import datetime
 import time
 import glv
 
+
 queue_names = [glv.api_queue_name, glv.current_task_queue, glv.failed_tasks, glv.incompleted_tasks, glv.completed_tasks]
 url = "http://localhost:5050/receive"
 headers = {'Content-Type': 'application/json'}
@@ -10,50 +11,47 @@ headers = {'Content-Type': 'application/json'}
 try:
     redis_conn = redis.Redis()
 except Exception as err:
-    print("Error while connecting to Redis:", err)
+    print("Error while connecting to redis:", err)
     exit(1)
 
-# Function to safely parse JSON data that may contain single quotes
-def safe_json_loads(item: str):
-    try:
-        # Replace single quotes with double quotes
-        fixed_item = item.replace("'", '"')
-        return json.loads(fixed_item)
-    except json.JSONDecodeError as err:
-        print(f"JSON decoding failed: {err}")
-        return {"error": "JSONDecodeError", "raw_data": item}
-
-# Getting data from each queue...
-def get_raw_queue_data(queue_name: str) -> dict:
+# geting data from each queue...
+def get_raw_queue_data(queue_name) -> dict:
     try:
         raw_data = redis_conn.lrange(queue_name, 0, -1)
-        jobs = []
-    except Exception as err:
-        print("Error while retrieving data from Redis:", err)
-        return {"error": str(err)}
+        qLength = redis_conn.llen(queue_name)
         
-    for item in raw_data:
-        item_str = item.decode('utf-8')  # Decode the byte string to a regular string
-        job_data = safe_json_loads(item_str)  # Parse with error handling
-        jobs.append(job_data)
-
+        jobs = []
+        print(qLength)
+    except Exception as err:
+        print("error", err)
+        return 1
+    if qLength != 0:
+        if queue_name == "current_task_queue" or queue_name == "api_req_queue":
+            for item in raw_data:
+                job_data = json.loads(item.decode('utf-8'))
+                jobs.append(job_data)
     return {
-        "queue_name": queue_name,
-        "queue_length": len(raw_data),
-        "jobs": jobs
-    }
-
-def generate_raw_queue_status() -> dict:
+                "queue_name": queue_name,
+                "queue_length": len(raw_data),
+                "jobs": jobs
+           }
+    
+def generate_raw_queue_status() -> json:
     overall_status = {}
+    print("generate_raw_queue_status")
     for queue_name in queue_names:
+        print(queue_name)
         overall_status[queue_name] = get_raw_queue_data(queue_name)
+        print(overall_status[queue_name])
+    print(overall_status)
     return overall_status
+
 
 def send_data_to_flask():  
     output = generate_raw_queue_status() 
     msg = {
        "service_name": "redis", 
-       "time_sent": datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'),
+       "time_sent": datetime.now().strftime("%H:%M:%S"),
        "redis": output
     }
     print(msg)
@@ -62,6 +60,7 @@ def send_data_to_flask():
         print(response.status_code, "---", response.json())
     except requests.RequestException as err:
         print("Error while sending data to API:", err)
+
 
 if __name__ == '__main__':
     while True:
@@ -74,15 +73,11 @@ if __name__ == '__main__':
         except Exception as err:
             print(f"An unexpected error occurred: {err}. Retrying in 10 seconds...")
             time.sleep(10)
-<<<<<<< HEAD
+
+
     # while True:
     #     try:
     #         send_data_to_flask()
     #         time.sleep(10)
     #     except Exception as err:
     #         print("error...", err)
-            
-    
-    
-=======
->>>>>>> b93cf6df6cce63dc88ff55f241a74cc2c192a362
