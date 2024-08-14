@@ -1,15 +1,15 @@
 import redis, requests, json
 from datetime import datetime
 import time
+import glv
 
 
-
-queue_names = ["api_req_queue", "current_task_queue", "failed_tasks", "incomplete_tasks", "completed_tasks"]
+queue_names = [glv.api_queue_name, glv.current_task_queue, glv.failed_tasks, glv.incompleted_tasks, glv.completed_tasks]
 url = "http://localhost:5050/receive"
 headers = {'Content-Type': 'application/json'}
 
 try:
-    redis_conn = redis.Redis(host='localhost', port=6379, db=0)
+    redis_conn = redis.Redis()
 except Exception as err:
     print("Error while connecting to redis:", err)
     exit(1)
