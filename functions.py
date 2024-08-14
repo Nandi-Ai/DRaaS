@@ -12,7 +12,7 @@ config.read('./config/parameters.ini')
 
 logger = logging.getLogger(__name__)
 redis_server = redis.Redis()
-queue_name = glv.queue_name
+queue_name = glv.api_queue_name
 completed_tasks = glv.completed_tasks
 failed_tasks = glv.failed_tasks
 incompleted_tasks = glv.incompleted_tasks
