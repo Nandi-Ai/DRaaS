@@ -13,6 +13,16 @@ except Exception as err:
     print("Error while connecting to Redis:", err)
     exit(1)
 
+# Function to safely parse JSON data that may contain single quotes
+def safe_json_loads(item: str):
+    try:
+        # Replace single quotes with double quotes
+        fixed_item = item.replace("'", '"')
+        return json.loads(fixed_item)
+    except json.JSONDecodeError as err:
+        print(f"JSON decoding failed: {err}")
+        return {"error": "JSONDecodeError", "raw_data": item}
+
 # Getting data from each queue...
 def get_raw_queue_data(queue_name: str) -> dict:
     try:
@@ -23,12 +33,9 @@ def get_raw_queue_data(queue_name: str) -> dict:
         return {"error": str(err)}
         
     for item in raw_data:
-        try:
-            job_data = json.loads(item.decode('utf-8'))
-            jobs.append(job_data)
-        except json.JSONDecodeError as err:
-            print(f"JSON decoding failed for an item in queue '{queue_name}': {err}")
-            jobs.append({"error": "JSONDecodeError", "raw_data": item.decode('utf-8')})
+        item_str = item.decode('utf-8')  # Decode the byte string to a regular string
+        job_data = safe_json_loads(item_str)  # Parse with error handling
+        jobs.append(job_data)
 
     return {
         "queue_name": queue_name,
@@ -52,13 +59,7 @@ def send_data_to_flask():
     print(msg)
     try:
         response = requests.post(url, json=msg, headers=headers, timeout=5)
-        print("Response Status Code:", response.status_code)
-        try:
-            response_json = response.json()  # Attempt to parse JSON response
-            print("Response JSON:", response_json)
-        except json.JSONDecodeError as err:
-            print(f"Failed to decode JSON from response: {err}")
-            print("Raw response content:", response.text)
+        print(response.status_code, "---", response.json())
     except requests.RequestException as err:
         print("Error while sending data to API:", err)
 
