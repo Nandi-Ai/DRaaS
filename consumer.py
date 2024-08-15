@@ -148,7 +148,7 @@ def main():
 
         if "active" in task_status:
                 send_logs.send_data_to_flask(0, 'redis server.set...', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
-                redis_server.set(name="current_task", value=json.dumps({"id": req_id, "switch_ip": req_switch_ip, "command": req_cmd}))
+                redis_server.set(name=queue_name, value=json.dumps({"id": req_id, "switch_ip": req_switch_ip, "command": req_cmd}))
                 switch_user = None
                 switch_password = None
                 switch_device_type = None
@@ -278,7 +278,7 @@ def main():
                                     update_credential_dict(req_switch_ip, retrieved_user, retrieved_password, "success")
 
                         # When a task is completed, remove the "current_task" key
-                        redis_server.delete("current_task")
+                        redis_server.delete(queue_name)
 
                     elif switch_device_type == 'gaia':
                         try:
