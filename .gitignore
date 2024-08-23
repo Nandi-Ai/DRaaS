@@ -6,6 +6,7 @@
 **/__pycache__/
 .vs/
 env/
+flaskenv/
 config/draas_config.ini
 config/parameters.ini
 venv/

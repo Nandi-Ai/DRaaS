@@ -15,7 +15,6 @@ incompleted_tasks = glv.incompleted_tasks
 completed_tasks = glv.completed_tasks
 credential_dict = glv.credential_dict
 failed_tasks = glv.failed_tasks
-current_task_que = "current_task_que"
 switch_info_url = settings.switch_info_url
 get_cmds_url = settings.url + "/getCommands"
 update_req_url = settings.url + "/SetCommandStatus"
@@ -85,6 +84,7 @@ def main():
         #start_time = time()
         while True:
             q_len = redis_server.llen(queue_name)
+            print(q_len)
             if q_len > 0:
                 rqst = redis_queue_get(queue_name)
                 break
@@ -140,15 +140,17 @@ def main():
             print("Queue is empty. Waiting...")
             logger.info("Queue is empty. Waiting...")
             send_logs.send_data_to_flask(0, 'Queue is empty. waiting to queue...', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
-
+        print(req_id)
+        print(redis_server.get(req_id))
         task_status = redis_server.get(req_id).decode()
         if task_status is None:
                 redis_set(req_id, "active")
                 task_status = redis_server.get(req_id)
 
         if "active" in task_status:
+                print("active in task_status...")
                 send_logs.send_data_to_flask(0, 'redis server.set...', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
-                redis_server.set(name=queue_name, value=json.dumps({"id": req_id, "switch_ip": req_switch_ip, "command": req_cmd}))
+                redis_server.set(name="current_task_queue", value=json.dumps({"id": req_id, "switch_ip": req_switch_ip, "command": req_cmd}))
                 switch_user = None
                 switch_password = None
                 switch_device_type = None
@@ -278,7 +280,7 @@ def main():
                                     update_credential_dict(req_switch_ip, retrieved_user, retrieved_password, "success")
 
                         # When a task is completed, remove the "current_task" key
-                        redis_server.delete(queue_name)
+                        redis_server.delete("current_task_queue")
 
                     elif switch_device_type == 'gaia':
                         try:

@@ -15,7 +15,7 @@ except Exception as err:
     exit(1)
 
 # geting data from each queue...
-def get_raw_queue_data(queue_name) -> dict:
+def get_raw_queue_data(queue_name: str) -> dict:
     try:
         raw_data = redis_conn.lrange(queue_name, 0, -1)
         qLength = redis_conn.llen(queue_name)
@@ -40,12 +40,10 @@ def generate_raw_queue_status() -> json:
     overall_status = {}
     print("generate_raw_queue_status")
     for queue_name in queue_names:
-        print(queue_name)
         overall_status[queue_name] = get_raw_queue_data(queue_name)
         print(overall_status[queue_name])
     print(overall_status)
     return overall_status
-
 
 def send_data_to_flask():  
     output = generate_raw_queue_status() 
@@ -66,13 +64,13 @@ if __name__ == '__main__':
     while True:
         try:
             send_data_to_flask()
-            time.sleep(10)  # Sleep for 10 seconds if everything is okay
+            time.sleep(10)      # Sleep for 10 seconds if everything is okay
         except (requests.ConnectionError, requests.Timeout) as err:
             print(f"Network error occurred: {err}. Retrying in 10 seconds...")
-            time.sleep(10)  # Sleep for 10 seconds before retrying in case of network errors
+            time.sleep(5) 
         except Exception as err:
             print(f"An unexpected error occurred: {err}. Retrying in 10 seconds...")
-            time.sleep(10)
+            time.sleep(5)
 
 
     # while True:
