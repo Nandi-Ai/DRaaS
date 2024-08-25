@@ -101,7 +101,7 @@ def redis_queue_push(task):
     try:
         print(f"DR Status: {task['dr_status']}")
         if bool(re.search('(active|failed|completed)', task["dr_status"])):
-            print("bool task status" ,str(task)
+            print("bool task status" ,str(task))
 
             send_logs.send_data_to_flask(0, f'recived task {task}', service_name) 
             #Active task

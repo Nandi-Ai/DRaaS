@@ -15,7 +15,7 @@ redis_server = redis.Redis()
 queue_name = glv.api_queue_name
 completed_tasks = glv.completed_tasks
 failed_tasks = glv.failed_tasks
-incompleted_tasks = glv.incompleted_tasks
+in_progress_tasks = glv.in_progress_tasks
 update_req_url = settings.url + "/SetCommandStatus"
 managment_logs_url = settings.url + "/postSwitchManagmentLogs"
 added_vlan = glv.added_vlan
@@ -146,27 +146,23 @@ def run_command_and_get_json(ip_address, username, password, command):
         ssh_client.close_connection()
 
 # Function to set a value in Redis
-def redis_set(KEY="", VALUE="", OUTPUT=""):
+def redis_set(KEY="", VALUE=""):
     try:
-        if OUTPUT:
-            OUTPUT = re.sub("\"", "\\\"", "      ".join(OUTPUT.splitlines()))
-        else:
-            OUTPUT = ""  # Handle the case where OUTPUT is None or empty
-        redis_server.set(name=KEY, value=f'{{ "status": "{VALUE}", "output": "{OUTPUT}" }}')
-        #print(redis_server.get(KEY))
+        isSet=redis_server.set(KEY, VALUE)
+        if isSet:
+          print(f"Pushed {KEY} Successfully")
         logger.info('Redis set - Key: %s, Value: %s', KEY, VALUE)
-        send_logs_to_api(f'Redis set - Key: {KEY}, Value: {VALUE}', 'info', settings.mid_server, datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'))
+        send_logs_to_api(f'Redis set - Key: {KEY}, Value: {VALUE}', 'info', settings.mid_server)
 
         # Check the status and push the task to the appropriate queue
         task_info = redis_server.get(KEY)
         if task_info:
-            task_status = json.loads(task_info.decode()).get("status")
-            if task_status == "completed":
+            if task_info == "completed":
                 redis_server.rpush(completed_tasks, KEY)
-            elif task_status == "failed":
+            elif task_info == "failed":
                 redis_server.rpush(failed_tasks, KEY)
-            elif task_status == "active":
-                redis_server.rpush(queue_name, KEY)
+            elif task_info == "active":
+                redis_server.rpush(in_progress_tasks, KEY)
         else:
             logger.warning('No information found for key: %s', KEY)
             send_logs_to_api(f'No information found for key: {KEY}', 'warning', settings.mid_server, datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'))
@@ -192,7 +188,8 @@ def send_status_update(ID, STATUS, OUTPUT):
 
 # Initialize the message counter
 message_counter = 0
-def send_logs_to_api(message, severity, source, timestamp):
+def send_logs_to_api(message, severity, source):
+    timestamp = datetime.now().strftime('%d/%m/%Y %I:%M:%S %p')
     try:
         global message_counter 
         message_counter = (message_counter + 1) % 101
@@ -213,7 +210,7 @@ def valid_response_code(statusCode,ID):
     if statusCode != 200:
         print("Api is not accesble. StatusCode is:", statusCode)
         logger.error('Error in updating API')
-        send_logs_to_api(f'Error in updating API', 'error', settings.mid_server, datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'))
+        send_logs_to_api(f'Error in updating API', 'error', settings.mid_server)
         redis_server.rpush(incompleted_tasks, ID)
 
 #Not Working Function - Fix

@@ -50,16 +50,16 @@ except ImportError:
 def redis_queue_get(queue_name):
     try:
         req = redis_server.lpop(queue_name)
-        print(req)
+        print("Request from redis:", req.decode())
         if req is not None:
-            logger.info('Redis queue get - Request: %s', req.decode())
-            send_logs_to_api(f'Redis queue get Request', 'info', settings.mid_server, datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'))
+            logger.info('Redis queue get - Request: %s', req)
+            send_logs_to_api(f'Redis queue get Request', 'info', settings.mid_server)
             return req.decode()
         else:
             return None
     except Exception as e:
         logger.error('Error in redis_queue_get: %s', str(e))
-        send_logs_to_api(f'Error in redis_queue_get: {str(e)}', 'error', settings.mid_server, datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'))
+        send_logs_to_api(f'Error in redis_queue_get: {str(e)}', 'error', settings.mid_server)
         return None
 
 # Function to get credentials from the dictionary
@@ -84,7 +84,7 @@ def main():
         #start_time = time()
         while True:
             q_len = redis_server.llen(queue_name)
-            print(q_len)
+            print("Queue Length: ",q_len)
             if q_len > 0:
                 rqst = redis_queue_get(queue_name)
                 break
@@ -94,7 +94,7 @@ def main():
             print("Queue is empty. Waiting...")
             logger.info("Queue is empty. Waiting...." )
             # sending data to flask api
-            send_logs.send_data_to_flask(0, 'Waiting to queue...', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
+            send_logs.send_data_to_flask(0, 'Waiting to queue...',  service_name)
             
             # response = requests.post(url, data="Queue is empty. Waiting....")
 
@@ -103,7 +103,7 @@ def main():
         print(f'Queue length: {q_len}')
         
         if rqst is not None:
-                send_logs.send_data_to_flask(0,'Getting data from queue...',  datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
+                send_logs.send_data_to_flask(0,'Getting data from queue...',   service_name)
                 fix_quotes = re.sub("'", "\"", rqst)
                 no_none = re.sub("None", "\"\"", fix_quotes)
                 json_req = json.loads(no_none)
@@ -139,17 +139,19 @@ def main():
         else:
             print("Queue is empty. Waiting...")
             logger.info("Queue is empty. Waiting...")
-            send_logs.send_data_to_flask(0, 'Queue is empty. waiting to queue...', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
-        print(req_id)
-        print(redis_server.get(req_id))
-        task_status = redis_server.get(req_id).decode()
+            send_logs.send_data_to_flask(0, 'Queue is empty. waiting to queue...',  service_name)
+        print("request ID:",req_id)
+    #    
+        task_status = redis_server.get(req_id)
+        print("Task Status: ",task_status)
         if task_status is None:
-                redis_set(req_id, "active")
+                redis_set(req_id, "in_progress")
                 task_status = redis_server.get(req_id)
+                print("task_status: ",task_status)
 
-        if "active" in task_status:
-                print("active in task_status...")
-                send_logs.send_data_to_flask(0, 'redis server.set...', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
+        if "in_progress" in task_status:
+                print(f"Request {req_id} found on redis")
+                send_logs.send_data_to_flask(0, f"Request {req_id} in progress ",  service_name)
                 redis_server.set(name="current_task_queue", value=json.dumps({"id": req_id, "switch_ip": req_switch_ip, "command": req_cmd}))
                 switch_user = None
                 switch_password = None
@@ -172,19 +174,19 @@ def main():
                         retrieved_password = switch_password
 
                     if (retrieved_user is not None and retrieved_password is not None):
-                        send_logs.send_data_to_flask(0,'connecting to sshclient. calling function (SSHClient)...', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
+                        send_logs.send_data_to_flask(0,'connecting to sshclient. calling function (SSHClient)...',  service_name)
                         ssh_client = SSHClient(req_switch_ip, retrieved_user, retrieved_password)
-                        send_logs.send_data_to_flask(0,f'Attempt to establish the SSH connection...', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
+                        send_logs.send_data_to_flask(0,f'Attempt to establish the SSH connection...',  service_name)
                         # Attempt to establish the SSH connection
                         connected = ssh_client.try_connect(req_id)
-                        send_logs.send_data_to_flask(0,f'sshclient status: {connected}...', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
+                        send_logs.send_data_to_flask(0,f'sshclient status: {connected}...',  service_name)
                         if not connected:
                             # If failed to connect after MAX attempts, send a status update to ServiceNow
                             error_message = f"Failed to establish SSH connection to {req_switch_ip} after {SSHClient.MAX_RETRIES} attempts."
                             redis_set(req_id, "failed", error_message)
                             send_status_update(req_id, "failed", error_message)
                             continue
-                        send_logs.send_data_to_flask(0, f'closing ssh client connection...', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
+                        send_logs.send_data_to_flask(0, f'closing ssh client connection...',  service_name)
                         ssh_client.close_connection()
 
                     if switch_device_type == 'switch':
@@ -201,13 +203,13 @@ def main():
                                     try:
                                         if req_cmd != "" and req_port_mode == "":
                                             if req_interface_name != "":
-                                                send_logs.send_data_to_flask(0, 'calling function (run_command_and_get_json)...', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
+                                                send_logs.send_data_to_flask(0, 'calling function (run_command_and_get_json)...',  service_name)
                                                 output = run_command_and_get_json(req_switch_ip, retrieved_user, retrieved_password, req_cmd)
                                             else:
-                                                send_logs.send_data_to_flask(0, 'calling function (run_command_and_get_json)...', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
+                                                send_logs.send_data_to_flask(0, 'calling function (run_command_and_get_json)...',  service_name)
                                                 output = run_command_and_get_json(req_switch_ip, retrieved_user, retrieved_password, req_cmd)
                                         else:
-                                            send_logs.send_data_to_flask(0, 'calling function (change_interface_mode)...', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
+                                            send_logs.send_data_to_flask(0, 'calling function (change_interface_mode)...',  service_name)
                                             output = change_interface_mode(req_switch_ip, retrieved_user, retrieved_password, req_interface_name, req_port_mode, req_vlans)
                                         if glv.added_vlan is not None:  # Check if a VLAN was added
                                             output_message = "Added VLANs: " + ", ".join(map(str, added_vlan))
@@ -220,7 +222,7 @@ def main():
 
                                     except Exception as error:
                                         output = f"{error}"
-                                        send_logs.send_data_to_flask(1, f'Exception, req_id: {req_id}, Error: {error}', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
+                                        send_logs.send_data_to_flask(1, f'Exception, req_id: {req_id}, Error: {error}',  service_name)
                                         redis_set(req_id, "failed", output)
                                         send_status_update(req_id, "failed", error)
 
@@ -242,13 +244,13 @@ def main():
                                 try:
                                     if req_cmd != "" and req_port_mode == "":
                                         if req_interface_name != "":
-                                            send_logs.send_data_to_flask(0, 'calling function (run_command_and_get_json)...', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
+                                            send_logs.send_data_to_flask(0, 'calling function (run_command_and_get_json)...',  service_name)
                                             output = run_command_and_get_json(req_switch_ip, retrieved_user, retrieved_password, req_cmd)
                                         else:
-                                            send_logs.send_data_to_flask(0, 'calling function (run_command_and_get_json)...', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
+                                            send_logs.send_data_to_flask(0, 'calling function (run_command_and_get_json)...',  service_name)
                                             output = run_command_and_get_json(req_switch_ip, retrieved_user, retrieved_password, req_cmd)
                                     else:
-                                        send_logs.send_data_to_flask(0, 'calling function (change_interface_mode)...', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
+                                        send_logs.send_data_to_flask(0, 'calling function (change_interface_mode)...',  service_name)
                                         output = change_interface_mode(req_switch_ip, retrieved_user, retrieved_password, req_interface_name, req_port_mode, req_vlans)
 
                                     if glv.added_vlan is not None:  # Check if a VLAN was added
@@ -261,7 +263,7 @@ def main():
                                         output = "operation is done."
                                 except Exception as error:
                                     output = f"{error}"
-                                    send_logs.send_data_to_flask(1, f'id: {req_id} failed, {error}', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
+                                    send_logs.send_data_to_flask(1, f'id: {req_id} failed, {error}',  service_name)
                                     redis_set(req_id, "failed", output)
                                     send_status_update(req_id, "failed", error)
                                     
@@ -287,11 +289,11 @@ def main():
                             ##VLAN add/remove
                             if discovery == "0" and req_interface_name and req_vlans:
                                 if req_cmd.lower() == "add vlan":
-                                    send_logs.send_data_to_flask(0, 'Calling function (add_gaia_vlan)...', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
+                                    send_logs.send_data_to_flask(0, 'Calling function (add_gaia_vlan)...',  service_name)
                                     cmd_output= gaia_ssh_connect.add_gaia_vlan(req_switch_ip, switch_user, switch_password, req_interface_name, req_vlans, vlan_ip, vlan_subnet,comments)
                                     action = "added"
                                 elif req_cmd.lower() == "delete vlan":
-                                    send_logs.send_data_to_flask(0, 'Calling function (remove_gaia_vlan)...', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
+                                    send_logs.send_data_to_flask(0, 'Calling function (remove_gaia_vlan)...',  service_name)
                                     cmd_output= gaia_ssh_connect.remove_gaia_vlan(req_switch_ip, switch_user, switch_password, req_interface_name, req_vlans)
                                     action = "removed"
                                 
@@ -300,13 +302,13 @@ def main():
                                         output = f'Cannot add the VLAN because: {cmd_output}'
                                     elif action == "removed":
                                         output = f'Cannot delete the VLAN because: {cmd_output}'
-                                    send_logs.send_data_to_flask(0, 'Calling function (send_gaia_status)...', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
+                                    send_logs.send_data_to_flask(0, 'Calling function (send_gaia_status)...',  service_name)
                                     send_gaia_status(req_id, status_message="status: failed", output=output, error=output,
                                                   req_cmd=req_cmd, destination=destination, gateway=gateway, req_vlans=req_vlans,req_interface_name=req_interface_name)
                                 else:
-                                    send_logs.send_data_to_flask(0, 'Calling function (get_gaia_interface_info)...', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
+                                    send_logs.send_data_to_flask(0, 'Calling function (get_gaia_interface_info)...',  service_name)
                                     gaia_interface_info = gaia_ssh_connect.get_gaia_interface_info(req_switch_ip, switch_user, switch_password)
-                                    send_logs.send_data_to_flask(0, 'Calling function (get_gaia_hostname)...', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
+                                    send_logs.send_data_to_flask(0, 'Calling function (get_gaia_hostname)...',  service_name)
                                     hostname = gaia_ssh_connect.get_gaia_hostname(req_switch_ip, switch_user, switch_password)
                                     interface_dict = json.loads(gaia_interface_info)
                                     combined_data = {"hostname": hostname, "interfaces": interface_dict}
@@ -314,7 +316,7 @@ def main():
 
                                     output_message = f"VLANs {req_vlans} {action} to interface {req_interface_name} on Gaia switch {req_switch_ip}."
                                     output = f"{output_message}\n{json_data}"
-                                    send_logs.send_data_to_flask(0, 'Calling function (send_gaia_status)...', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
+                                    send_logs.send_data_to_flask(0, 'Calling function (send_gaia_status)...',  service_name)
                                     send_gaia_status(req_id, status_message="status: success", output=output, error=None,
                                                   req_cmd=None, destination=None, gateway=None, req_vlans=None,req_interface_name=None)
 
@@ -323,17 +325,17 @@ def main():
                                 if req_cmd.lower() == "add route":
                                     if gateway is not None:
                                         if priority is not None:
-                                            send_logs.send_data_to_flask(0, 'Calling function (add_gaia_route)...', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
+                                            send_logs.send_data_to_flask(0, 'Calling function (add_gaia_route)...',  service_name)
                                             cmd_output= gaia_ssh_connect.add_gaia_route(req_switch_ip, switch_user, switch_password, destination, gateway,priority)
                                         else:
-                                            send_logs.send_data_to_flask(0, 'Calling function (add_gaia_route)...', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
+                                            send_logs.send_data_to_flask(0, 'Calling function (add_gaia_route)...',  service_name)
                                             cmd_output= gaia_ssh_connect.add_gaia_route(req_switch_ip, switch_user, switch_password, destination, gateway)
                                         action = "added"
                                     else:
                                         cmd_output = "No Gateway is provided"
                                         
                                 elif req_cmd.lower() == "delete route":
-                                    send_logs.send_data_to_flask(0, 'Calling function (remove_gaia_route)...', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)                                
+                                    send_logs.send_data_to_flask(0, 'Calling function (remove_gaia_route)...',  service_name)                                
                                     cmd_output = gaia_ssh_connect.remove_gaia_route(req_switch_ip, switch_user, switch_password, destination)
                                     action = "removed"
 
@@ -347,9 +349,9 @@ def main():
                                                   req_cmd=req_cmd, destination=destination, gateway=gateway, req_vlans=req_vlans,req_interface_name=req_interface_name)
 
                                 else:
-                                    send_logs.send_data_to_flask(0, 'Calling function (get_gaia_route_info)...', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)                                
+                                    send_logs.send_data_to_flask(0, 'Calling function (get_gaia_route_info)...',  service_name)                                
                                     gaia_route_info = gaia_ssh_connect.get_gaia_route_info(req_switch_ip, switch_user, switch_password)
-                                    send_logs.send_data_to_flask(0, 'Calling function (get_gaia_hostname)...', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)                                
+                                    send_logs.send_data_to_flask(0, 'Calling function (get_gaia_hostname)...',  service_name)                                
                                     hostname = gaia_ssh_connect.get_gaia_hostname(req_switch_ip, switch_user, switch_password)
                                     route_dict = json.loads(gaia_route_info)
                                     combined_data = {"hostname": hostname,"routes": route_dict}
@@ -362,9 +364,9 @@ def main():
                                                   req_cmd=None, destination=None, gateway=None, req_vlans=None,req_interface_name=None)
 
                             if discovery == "1":
-                                send_logs.send_data_to_flask(0, 'calling function (get_gaia_interface_info)...', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)                                                                
+                                send_logs.send_data_to_flask(0, 'calling function (get_gaia_interface_info)...',  service_name)                                                                
                                 gaia_interface_info = gaia_ssh_connect.get_gaia_interface_info(req_switch_ip, switch_user, switch_password)
-                                send_logs.send_data_to_flask(0, 'calling function (get_gaia_interface_info)...', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)                                                                
+                                send_logs.send_data_to_flask(0, 'calling function (get_gaia_interface_info)...',  service_name)                                                                
                                 gaia_route_info = gaia_ssh_connect.get_gaia_route_info(req_switch_ip, switch_user, switch_password)
                                 hostname = gaia_ssh_connect.get_gaia_hostname(req_switch_ip, switch_user, switch_password)
 
@@ -389,7 +391,7 @@ def main():
 
         elif "completed" in str(task_status):
                 redis_server.rpush(completed_tasks, str(json_req))
-                send_logs.send_data_to_flask(0, 'Completed...', datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), service_name)
+                send_logs.send_data_to_flask(0, 'Completed...',  service_name)
                 continue
         sleep(10)
 
