@@ -1,0 +1,11 @@
+ntc_templates
+netmiko
+configparser
+confparser
+Flask
+flasgger
+requests
+netmiko
+python-dotenv
+paramiko
+redis

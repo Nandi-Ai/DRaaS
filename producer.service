@@ -1,0 +1,16 @@
+[Unit]
+Description=Producer
+After=network.target
+
+[Service]
+Type=simple
+Restart=always
+User=root
+WorkingDirectory=/home/saba/Work/devops-work/Drass/DRaaS
+ExecStart=/home/saba/Work/devops-work/Drass/env/bin/python /home/saba/Work/devops-work/Drass/DRaaS/producer.py
+StandardOutput=append:/var/log/producer.log
+StandardError=append:/var/log/producer_error.log
+SyslogIdentifier=producer
+
+[Install]
+WantedBy=multi-user.target
