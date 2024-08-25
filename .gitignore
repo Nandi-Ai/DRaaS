@@ -9,5 +9,6 @@ env/
 flaskenv/
 config/draas_config.ini
 config/parameters.ini
+**/parameter.ini
 venv/
 lib/
