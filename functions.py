@@ -161,7 +161,7 @@ def redis_set(KEY="", VALUE=""):
                 redis_server.rpush(completed_tasks, KEY)
             elif task_info == "failed":
                 redis_server.rpush(failed_tasks, KEY)
-            elif task_info == "active":
+            elif (task_info == "active") or (task_info == "in_progress"):
                 redis_server.rpush(in_progress_tasks, KEY)
         else:
             logger.warning('No information found for key: %s', KEY)

@@ -11,7 +11,7 @@ settings.init()
 # Create a Redis server connections.
 redis_server = redis.Redis()
 queue_name = glv.api_queue_name
-incompleted_tasks = glv.incompleted_tasks
+in_progress_tasks = glv.in_progress_tasks
 completed_tasks = glv.completed_tasks
 credential_dict = glv.credential_dict
 failed_tasks = glv.failed_tasks
