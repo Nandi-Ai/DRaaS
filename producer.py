@@ -98,7 +98,7 @@ def cleanup_redis():
             if task:
                 redis_server.delete(task)
 
-def redis_queue_push(task):
+def queue_push(task):
     api_task_record_id=task["record_id"]
     api_task_command_number=task["command_number"]
     print(f"api_task_record_id: {api_task_record_id} {api_task_command_number} ")
@@ -201,7 +201,7 @@ if __name__ == "__main__":
             if task['mid_name'] == settings.mid_server:
                 api_task_record_id=task["record_id"]
                 # Push task to the Redis queue
-                redis_queue_push(task)
+                queue_push(task)
     
         tasks_for_mid_server = [task for task in tasks if task['mid_name'] == settings.mid_server]
         items_in_queue = len(tasks_for_mid_server)

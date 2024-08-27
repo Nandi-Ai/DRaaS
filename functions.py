@@ -180,31 +180,31 @@ def redis_set(KEY="", VALUE=""):
 
 
 # testing
-def rabbitmq_set(KEY="", VALUE=""):
+def rabbitmq_push(task, queue_name=""):
     try:
 
-        target_queue = ''
-        if VALUE == "completed":
+        target_queue = None
+        if queue_name == "completed":
             target_queue = completed_tasks
-        elif VALUE == "failed":
+        elif queue_name == "failed":
             target_queue = failed_tasks
-        elif VALUE == "active" or VALUE == "in_progress":
+        elif queue_name == "active" or queue_name == "in_progress":
             target_queue = in_progress_tasks
         
         if target_queue:
             rabbit_server.basic_publish(
                 exchange='',
                 routing_key=target_queue,
-                body=json.dumps(KEY),
+                body=json.dumps(task),
                 properties=pika.BasicProperties(
                     delivery_mode=2  # Make message persistent
                 )
             )
             # logger.info('RabbitMQ set - Key: %s, Value: %s', KEY, VALUE)
-            print(f"Pushed {KEY} with value {VALUE} to {target_queue} Successfully")
+            print(f"Pushed {task} with value {queue_name} to {target_queue} Successfully")
             # send_logs_to_api(f'RabbitMQ set - Key: {KEY}, Value: {VALUE}', 'info', 'mid_server')
         else:
-            logger.warning('Invalid task state: %s', VALUE)
+            logger.warning('Invalid state for %s', queue_name)
             # send_logs_to_api(f'Invalid task state: {VALUE}', 'warning', 'mid_server')
     except Exception as err:
         # logger.error('Failed to set in RabbitMQ: %s', str(err))
@@ -230,7 +230,7 @@ def get_task_status_by_req_id(json_req):
     # return Nonessages in queue: {rq}")
 
 
-# testingg
+# TODO Check if there is built in option to check on all queues
 def search_task_in_queues(json_req):
     queues = [queue_name, completed_tasks, failed_tasks, in_progress_tasks]
 
