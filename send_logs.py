@@ -31,7 +31,6 @@ def get_proc_data(servicename):
 def send_data_to_flask(status, message, servicename):    
     service_proc_data = get_proc_data(servicename)
     timestamp = datetime.now().strftime('%d/%m/%Y %I:%M:%S %p')
-    print(service_proc_data)  
     msg = {
         "service_name": servicename, 
         "time_sent": timestamp,

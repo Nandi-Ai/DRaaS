@@ -10,7 +10,7 @@ def init():
     global switch_info_url
     config = configparser.ConfigParser()
     config.sections()
-    config.read('./config/parameters.ini')
+    config.read('../config/parameters.ini')
     config.sections()
 
     if 'DEFAULT' in config:

@@ -7,17 +7,25 @@ from datetime import datetime
 import glv; from glv import Enabled
 import settings
 from functions import *
+
 import send_logs
+from rabbitmq import *
+
 
 settings.init()
 
 service_name = "producer"
 
+# testing
+rabbit_server = rabbit_connection()
+# rabbit_server.queue_declare(queue=queue_name)
 
-redis_server = redis.Redis(host='localhost', port=6379, db=0)
+
+
+# redis_server = redis.Redis(host='localhost', port=6379, db=0)
 
 # Set the value of Enabled to Redis when the script starts
-redis_server.set("Enabled", int(glv.Enabled))
+# redis_server.set("Enabled", int(glv.Enabled))
 
 queue_name = glv.api_queue_name
 failed_tasks=glv.failed_tasks
@@ -95,6 +103,8 @@ def redis_queue_push(task):
     api_task_command_number=task["command_number"]
     print(f"api_task_record_id: {api_task_record_id} {api_task_command_number} ")
     redisJobStatus = redis_server.get(api_task_record_id)
+    
+    # rabbitJobStatus = rabbit_server.get(api_task_record_id)
     print("Assigned Job status ", api_task_record_id)
     print("Redis job status: ", redisJobStatus)
 
@@ -110,7 +120,15 @@ def redis_queue_push(task):
                 print("Found active status")                    
                 send_logs.send_data_to_flask(0, f'job status is active...  {task["dr_status"]}',  service_name)                                                                
                 print(f"Job {api_task_record_id} pushed to queue and waiting to be executed")
-                redis_server.rpush(queue_name, str(task))
+                # redis_server.rpush(queue_name, str(task))
+                
+                # testing
+                rabbit_server.basic_publish(exchange="",
+                                            routing_key=queue_name,
+                                            body=json.dumps(task),
+                                            properties=pika.BasicProperties(delivery_mode=2)
+                                            )
+                
                 print(f"Job {api_task_record_id} pushed to queue {queue_name} and waiting to be executed")
                 return
             # If found this job on Redis what to do
@@ -133,7 +151,6 @@ def redis_queue_push(task):
                     send_status_update(task["record_id"], redisJobStatus["status"], output)
                     redis_server.rpush(completed_tasks, str(task))
 
-    
 
                 #failed task wait with the task, low priority
                 if task["record_id"] not in [json.loads(t)["record_id"] for t in redis_server.lrange(failed_tasks,0,-1)]:
@@ -141,8 +158,8 @@ def redis_queue_push(task):
                     redis_server.rpush(failed_tasks, json.dumps(task))
 
             else:
-                    logger.warning("Job status is empty or None for record_id: %s", task["record_id"])
-                    send_logs.send_data_to_flask(2, 'watning job status is empty or none record_id',  service_name)
+                logger.warning("Job status is empty or None for record_id: %s", task["record_id"])
+                send_logs.send_data_to_flask(2, 'watning job status is empty or none record_id',  service_name)
 
                 #  print(f"else: {job_status}")
                 #  redis_server.rpush(queue_name, str(task))
