@@ -8,7 +8,6 @@ from time import sleep, time
 import settings; from settings import *; settings.init()
 
 from rabbitmq import *
-
 rabbit_server = rabbit_connection()
 logging.getLogger('pika').setLevel(logging.CRITICAL)
 
@@ -154,30 +153,23 @@ def run_command_and_get_json(ip_address, username, password, command):
 # Function to set a value in Redis
 def redis_set(KEY="", VALUE=""):
     try:
-
         isSet = redis_server.set(KEY, VALUE)
         if isSet:
           print(f"Pushed {KEY} Successfully")
         logger.info('Redis set - Key: %s, Value: %s', KEY, VALUE)
         send_logs_to_api(f'Redis set - Key: {KEY}, Value: {VALUE}', 'info', settings.mid_server)
 
-        # testing. we dont need queues in redis.         
+        # Check the status and push the task to the appropriate queue
         task_info = redis_server.get(KEY)
-        task = {
-            'KEY': KEY,
-            'TIME': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        }
-        json_task = json.dumps(task)
         if task_info:
             if task_info == "completed":
-                redis_server.rpush(completed_tasks, json_task)
+                redis_server.rpush(completed_tasks, KEY)
             elif task_info == "failed":
-                redis_server.rpush(failed_tasks, json_task)
+                redis_server.rpush(failed_tasks, KEY)
             elif (task_info == "active") or (task_info == "in_progress"):
-                redis_server.rpush(in_progress_tasks, json_task)
+                redis_server.rpush(in_progress_tasks, KEY)
         else:
             logger.warning('No information found for key: %s', KEY)
-            print('No information found for key: %s', KEY)
             send_logs_to_api(f'No information found for key: {KEY}', 'warning', settings.mid_server, datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'))
 
     except Exception as e:
