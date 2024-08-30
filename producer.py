@@ -122,7 +122,7 @@ def queue_push(task):
                 print(f"Job {api_task_record_id} pushed to queue and waiting to be executed")
                 # redis_server.rpush(queue_name, str(task))
                 
-                # testing
+                # pushing everything inside rabbitmq 
                 rabbit_server.basic_publish(exchange="",
                                             routing_key=queue_name,
                                             body=json.dumps(task),
@@ -148,13 +148,14 @@ def queue_push(task):
                     
                     output = re.sub("      ", "\n", redisJobStatus["output"])
                     send_status_update(task["record_id"], redisJobStatus["status"], output)
-                    redis_server.rpush(completed_tasks, str(task))
+                    redis_set(completed_tasks, task)
+                    
 
 
                 #failed task wait with the task, low priority
                 if task["record_id"] not in [json.loads(t)["record_id"] for t in redis_server.lrange(failed_tasks,0,-1)]:
                     send_logs.send_data_to_flask(0, f'failed job... ',  service_name)                                                                
-                    redis_server.rpush(failed_tasks, json.dumps(task))
+                    redis_set(failed_tasks, task)
 
             else:
                 logger.warning("Job status is empty or None for record_id: %s", task["record_id"])
