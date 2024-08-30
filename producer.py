@@ -126,8 +126,7 @@ def queue_push(task):
                 rabbit_server.basic_publish(exchange="",
                                             routing_key=queue_name,
                                             body=json.dumps(task),
-                                            properties=pika.BasicProperties(delivery_mode=2)
-                                            )
+                                            properties=pika.BasicProperties(delivery_mode=2))
                 
                 print(f"Job {api_task_record_id} pushed to queue {queue_name} and waiting to be executed")
                 return
