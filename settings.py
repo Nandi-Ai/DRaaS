@@ -10,7 +10,7 @@ def init():
     global switch_info_url
     config = configparser.ConfigParser()
     config.sections()
-    config.read('../config/parameters.ini')
+    config.read('/opt/DRaaS/config/parameters.ini')
     config.sections()
 
     if 'DEFAULT' in config:
@@ -37,5 +37,3 @@ def init():
         switch_info_url = config['DEFAULT']['switch_info_url']
     else:
         switch_info_url = os.environ.get('switch_info_url')
-
-

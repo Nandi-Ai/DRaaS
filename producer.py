@@ -58,7 +58,7 @@ except ImportError:
 
 def get_requests():
     commands = requests.post(get_cmds_url, headers={'Content-Type': 'application/json'}, auth=(settings.username, settings.password)).json()
-    print (f"Got from commands from API: {commands['result']}")
+    # print (f"Got from commands from API: {commands['result']}")
     return commands['result']
 
 def send_health_monitoring_update (mid_name, items_in_queue, items_in_process, items_failed, in_progress_tasks, Timestamp):
@@ -102,62 +102,64 @@ def queue_push(task):
     api_task_record_id=task["record_id"]
     api_task_command_number=task["command_number"]
     print(f"api_task_record_id: {api_task_record_id} {api_task_command_number} ")
-    redisJobStatus = redis_server.get(api_task_record_id)
+    redisJobStatus = redis_server.get(api_task_command_number)
     
     # rabbitJobStatus = rabbit_server.get(api_task_record_id)
-    print("Assigned Job status ", api_task_record_id)
+    print("Assigned Job status ", api_task_command_number)
     print("Redis job status: ", redisJobStatus)
+    drStatus=task['dr_status']
 
     try:
-        print(f"DR Status: {task['dr_status']}")
-        if bool(re.search('(active|failed)', task["dr_status"])):
-            print("bool task status" ,str(task))
+        print(f"DR Status: {drStatus}")
+        if bool(re.search('(active|failed)', drStatus)):
+            print("active/failed task condition status " ,drStatus)
 
             send_logs.send_data_to_flask(0, f'recived task {task}', service_name) 
             #Active task
 
-            if "active" in task["dr_status"]:   
-                print("Found active status")                    
-                send_logs.send_data_to_flask(0, f'job status is active...  {task["dr_status"]}',  service_name)                                                                
-                print(f"Job {api_task_record_id} pushed to queue and waiting to be executed")
-                # redis_server.rpush(queue_name, str(task))
+            redis_server.set(api_task_command_number, drStatus)
+            if "active" in drStatus:   
+                if redisJobStatus is None:
+                    
+                    print("Aha! Found new active status")                    
+                    send_logs.send_data_to_flask(0, f'job status is active...  {task["dr_status"]}',  service_name)                                                                
+                    print(f"Job {api_task_record_id} pushed to queue and waiting to be executed")
+                    # redis_server.rpush(queue_name, str(task))
                 
                 # pushing everything inside rabbitmq 
-                rabbit_server.basic_publish(exchange="",
-                                            routing_key=queue_name,
-                                            body=json.dumps(task),
-                                            properties=pika.BasicProperties(delivery_mode=2))
+                    rabbit_server.basic_publish(exchange="",
+                                                routing_key=queue_name,
+                                                body=json.dumps(task),
+                                                properties=pika.BasicProperties(delivery_mode=2))
                 
-                print(f"Job {api_task_record_id} pushed to queue {queue_name} and waiting to be executed")
-                return
+                    print(f"Job {api_task_record_id} pushed to queue {queue_name} and waiting to be executed")
+                    return
             # If found this job on Redis what to do
-            if redisJobStatus is not None and redisJobStatus.strip():
-                print("redisJobStatus is not empty, job exists on Redis: %s", redisJobStatus)
-                try:
-                    redisJobStatus=json.loads(redisJobStatus.decode())
-                except json.JSONDecodeError as json_error:
-                    print("error")
-                    logger.error("Error decoding JSON for api_task_record_id: %s. Error: %s", api_task_record_id, str(json_error))
-                    send_logs.send_data_to_flask(1, f'Error decoding JSON for api_task_record_id: {api_task_record_id}, Error: {str(json_error)}...',  service_name)
-                    return  # Exit the function if JSON decoding fails
+            if redisJobStatus is not None:
+                print("redisJobStatus is not empty, job exists on Redis: ", redisJobStatus)
+                print("Job discarded")
+                ### TODO THIS JOB WAS DONE
+                # send_logs.send_data_to_flask(1, f'Error decoding JSON for api_task_record_id: {api_task_record_id}, Error: {str(json_error)}...',  service_name)
+                return  # Exit the function if JSON decoding fails
                 # if completed
                 if "completed" in redisJobStatus["dr_status"]:
 
-                    print("This job is completed")
+                    print("This job is already completed")
                     send_logs.send_data_to_flask(0, f'completed...', service_name)
                     
-                    output = re.sub("      ", "\n", redisJobStatus["output"])
-                    send_status_update(task["record_id"], redisJobStatus["status"], output)
-                    redis_set(completed_tasks, task)
+                    ###TODO Get output of known task
+                    send_status_update(task["record_id"], redisJobStatus["status"], "completed")
                     
 
-
+                ##TODO updating this part
                 #failed task wait with the task, low priority
-                if task["record_id"] not in [json.loads(t)["record_id"] for t in redis_server.lrange(failed_tasks,0,-1)]:
+                if api_task_command_number not in [json.loads(t)["record_id"] for t in redis_server.lrange(failed_tasks,0,-1)]:
                     send_logs.send_data_to_flask(0, f'failed job... ',  service_name)                                                                
+                    ## TODO Fix this part
                     redis_set(failed_tasks, task)
 
             else:
+                print("Job exists on redis, quitting")
                 logger.warning("Job status is empty or None for record_id: %s", task["record_id"])
                 send_logs.send_data_to_flask(2, 'watning job status is empty or none record_id',  service_name)
 
@@ -169,7 +171,7 @@ def queue_push(task):
         else:
           # print normal output for debug
           print(re.search('(active|failed|completed)', task["dr_status"]))
-          print("else ")
+          print("else quit")
 
 
     except Exception as e:
@@ -196,11 +198,12 @@ if __name__ == "__main__":
 
         tasks = get_requests()
         send_logs.send_data_to_flask(0, 'Getting Tasks...',  service_name)
-
+        print("Read task batch")
+        print("***************")
+        print("***************")
+        print("")
         for task in tasks:
             if task['mid_name'] == settings.mid_server:
-                api_task_record_id=task["record_id"]
-                # Push task to the Redis queue
                 queue_push(task)
     
         # tasks_for_mid_server = [task for task in tasks if task['mid_name'] == settings.mid_server]
@@ -215,4 +218,5 @@ if __name__ == "__main__":
         # send_logs.send_data_to_flask(0, f'Service up...',  service_name)
                                                                                                        
         # send_health_monitoring_update(settings.mid_server, items_in_queue, items_in_progress, items_failed, items_incomplete, Timestamp)
+        print("***************")
         sleep(10)

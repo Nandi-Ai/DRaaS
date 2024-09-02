@@ -17,7 +17,8 @@ config.sections()
 config.read('./config/parameters.ini')
 
 logger = logging.getLogger(__name__)
-redis_server = redis.Redis()
+redis_server = redis.Redis(host='localhost', port=6379, db=0)
+redis_server = redis.StrictRedis(charset="utf=8", decode_responses=True)
 queue_name = glv.api_queue_name
 completed_tasks = glv.completed_tasks
 failed_tasks = glv.failed_tasks
@@ -154,19 +155,15 @@ def run_command_and_get_json(ip_address, username, password, command):
 
 
 
-def get_task(TASk_ID):
-    set_keys = [queue_name, completed_tasks, failed_tasks, in_progress_tasks]    
+def get_task_status(task):
     
-    for set_key in set_keys:
-        
-        tasks = redis_server.smembers(set_key)    
-        for task in tasks:
-            result = task.decode('utf-8')
-            task_data = json.loads(result)
-            if task_data['TASK'].get('record_id') == TASk_ID:
-                print(f"Task with req_id '{TASk_ID}' found in set '{set_key}'")
-                return set_key, task_data['TASK']
-    return False, False
+    api_task_record_id=task["record_id"]
+    task_command_id=task["command_number"]
+    redisJobStatus = redis_server.get(task_command_id)
+    return redisJobStatus
+
+def redis_set_key(key_name, value):
+    redis_server.set(key_name,value)
 
 def redis_set(KEY_NAME="", TASK=""):
     try:
