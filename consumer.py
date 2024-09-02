@@ -53,23 +53,7 @@ except ImportError:
     logging.basicConfig(level=logging.DEBUG, format=f'%(asctime)s - %(levelname)-8s - %(message)s', datefmt=time_format)
 
 
-# Function to get the next request from the Redis queue
-# def redis_queue_get(queue_name):
-#     try:
-#         req = redis_server.lpop(queue_name)
-#         print("Request from redis:", req.decode())
-#         if req is not None:
-#             logger.info('Redis queue get - Request: %s', req)
-#             send_logs_to_api(f'Redis queue get Request', 'info', settings.mid_server)
-#             return req.decode()
-#         else:
-#             return None
-#     except Exception as e:
-#         logger.error('Error in redis_queue_get: %s', str(e))
-#         send_logs_to_api(f'Error in redis_queue_get: {str(e)}', 'error', settings.mid_server)
-#         return None
-    
-# testing
+
 def rabbitmq_queue_get(queue_name):
     try:    
         method_frame, header_frame, body = rabbit_server.basic_get(queue=queue_name, auto_ack=True)
@@ -77,14 +61,14 @@ def rabbitmq_queue_get(queue_name):
         if method_frame:
             message = body.decode()
             print("Request from RabbitMQ:", message)
-            # logger.info('RabbitMQ queue get - Request: %s', message)
-            # send_logs_to_api('RabbitMQ queue get Request', 'info', settings.mid_server)
+            logger.info('RabbitMQ queue get - Request: %s', message)
+            send_logs_to_api('RabbitMQ queue get Request', 'info', settings.mid_server)
             return message
         else:
             return None    
     except Exception as e:
-        # logger.error('Error in rabbit_queue_get: %s', str(e))
-        # send_logs_to_api(f'Error in rabbit_queue_get: {str(e)}', 'error', settings.mid_server)
+        logger.error('Error in rabbit_queue_get: %s', str(e))
+        send_logs_to_api(f'Error in rabbit_queue_get: {str(e)}', 'error', settings.mid_server)
         return None
     
 
@@ -105,12 +89,18 @@ def get_id_status(ID):
 
 # funtion that checks if there is some stucked jobs or failed jobs 
 def check_jobs(KEY_NAME):
-    print("starting check stuck_jobs function")
     if KEY_NAME == "in_progress_tasks":
+        print("stuck_jobs ")
+        
         second = 120 # 2 minute
     elif KEY_NAME == "failed_tasks":
-        second = 600 # 10 minute
+        print(" failed_jobs")
         
+        second = 600 # 10 minute
+    else:
+        print(f"Unknown KEY_NAME: {KEY_NAME}")
+        return False
+    
     status = False
     
     jobs = redis_server.smembers(KEY_NAME)
@@ -121,8 +111,10 @@ def check_jobs(KEY_NAME):
         except Exception as err:
             print(f"error while decoding stuck job: {task}... Error: ", err)
             continue
-        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        time_difference = current_time - task_data.get("TIME")
+        current_time = datetime.now()
+        task_time_str = task_data.get("TIME")
+        task_time = datetime.fromisoformat(task_time_str)
+        time_difference = current_time - task_time
         if time_difference.total_seconds() > second:
             status = True
             print(f"found task {time_difference.total_seconds()} second {KEY_NAME}. Task: {task_data}...")
@@ -130,7 +122,7 @@ def check_jobs(KEY_NAME):
                 redis_server.srem(KEY_NAME, job)         
                 rabbit_server.basic_publish(exchange="",
                                             routing_key=queue_name,
-                                            body=json.dumps(job),
+                                            body=json.dumps(task_data),
                                             properties=pika.BasicProperties(delivery_mode=2))        
                 continue
             except Exception as err:
@@ -162,11 +154,14 @@ def main():
                 stuck_jobs = check_jobs(in_progress_tasks)
                 if stuck_jobs:
                     print("there is some stuck jobs...")
+                    rqst = rabbitmq_queue_get(queue_name)
                     break
                 else:
                     # if job failed 10 minutes ago this will try to process one more time
                     failed_jobs = check_jobs(failed_tasks)
                     if failed_jobs:
+                        rqst = rabbitmq_queue_get(queue_name)
+                        
                         print("there is failed jobs trying to proccess one more time")
                         break
    
@@ -219,7 +214,6 @@ def main():
             continue
 
 
-        # testing...
         redis_set("in_progress_tasks", json_req)
         print(f"req_id: {req_id}... set in progress")
         send_logs.send_data_to_flask(0, f"Request {req_id} in progress ",  service_name)

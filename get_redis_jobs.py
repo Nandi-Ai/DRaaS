@@ -2,46 +2,91 @@ import redis, requests, json
 from datetime import datetime
 import time
 import glv
+import pika
 
-
-queue_names = [glv.api_queue_name, glv.current_task_queue, glv.failed_tasks, glv.incompleted_tasks, glv.completed_tasks]
 url = "http://localhost:5050/receive"
 headers = {'Content-Type': 'application/json'}
 
 try:
+    # connecting to redis
     redis_conn = redis.Redis()
+    
+    # connecting to rabbitmq
+    rabbit_conn = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
+    rabbit_channel = rabbit_conn.channel()
 except Exception as err:
     print("Error while connecting to redis:", err)
     exit(1)
 
-# geting data from each queue...
+
 def get_raw_queue_data(queue_name: str) -> dict:
+    raw_data = []
+    queue_length = 0
+
+    def callback(ch, method, properties, body):
+        nonlocal queue_length
+        queue_length += 1
+        job_data = json.loads(body.decode('utf-8'))
+        raw_data.append(job_data)
+
+    connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
+    rabbit_channel = connection.channel()
+    rabbit_channel.queue_declare(queue=queue_name, durable=True)
     try:
-        raw_data = redis_conn.lrange(queue_name, 0, -1)
-        qLength = redis_conn.llen(queue_name)
-        
-        jobs = []
-        print(qLength)
-    except Exception as err:
-        print("error", err)
-        return 1
-    if qLength != 0:
-        if queue_name == "current_task_queue" or queue_name == "api_req_queue":
-            for item in raw_data:
-                job_data = json.loads(item.decode('utf-8'))
-                jobs.append(job_data)
+        for method_frame, properties, body in rabbit_channel.consume(queue=queue_name, inactivity_timeout=1, auto_ack=False):
+            if body:
+                callback(None, method_frame, properties, body)
+            else:
+                break
+    finally:
+        connection.close()
+    jobs = raw_data if queue_length > 0 and queue_name == "api_req_queue" else []
     return {
-                "queue_name": queue_name,
-                "queue_length": len(raw_data),
-                "jobs": jobs
-           }
+        "queue_name": queue_name,
+        "queue_length": queue_length,
+        "jobs": jobs
+    }
     
+    
+def get_redis_jobs():
+    queue_names = [ glv.current_task_queue, glv.failed_tasks, glv.in_progress_tasks]
+    redis_tasks = {} 
+    for set_name in queue_names:
+        try: 
+            members = redis_conn.smembers(set_name)  
+            set_length = redis_conn.scard(set_name)
+            print(f"Set '{set_name}' has {set_length} members.")
+            print("Members:")
+            if set_name == glv.current_task_queue:
+                tasks = []
+                for jobs in members:
+                    task_data = jobs.decode('utf-8')
+                    task = json.loads(task_data)
+                    tasks.append(task)
+                redis_tasks[set_name] = {
+                    "queue_name": set_name,
+                    "queue_length": set_length,
+                    "jobs": tasks
+                }
+            else:
+                redis_tasks[set_name] = {
+                        "queue_name": set_name,
+                        "queue_length": set_length,
+                        "jobs": []
+                    }
+        except redis.exceptions.RedisError as e:
+            print(f"An error occurred with set '{set_name}': {e}")
+    
+    return redis_tasks
+        
 def generate_raw_queue_status() -> json:
+    rq = [ glv.api_queue_name, glv.completed_tasks]
     overall_status = {}
-    print("generate_raw_queue_status")
-    for queue_name in queue_names:
+    for queue_name in rq:
         overall_status[queue_name] = get_raw_queue_data(queue_name)
-        print(overall_status[queue_name])
+        
+    redis_jobs = get_redis_jobs()
+    overall_status.update(redis_jobs)
     print(overall_status)
     return overall_status
 

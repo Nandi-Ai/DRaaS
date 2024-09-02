@@ -203,14 +203,14 @@ if __name__ == "__main__":
                 # Push task to the Redis queue
                 queue_push(task)
     
-        tasks_for_mid_server = [task for task in tasks if task['mid_name'] == settings.mid_server]
-        items_in_queue = len(tasks_for_mid_server)
-        items_in_progress = sum(1 for task in tasks_for_mid_server if task.get('dr_status') == 'active')
-        items_failed = redis_server.llen(failed_tasks)
-        in_progress_tasks = redis_server.llen(in_progress_tasks)
-        Timestamp = datetime.now().strftime('%d/%m/%Y %I:%M:%S %p')
+        # tasks_for_mid_server = [task for task in tasks if task['mid_name'] == settings.mid_server]
+        # items_in_queue = len(tasks_for_mid_server)
+        # items_in_progress = sum(1 for task in tasks_for_mid_server if task.get('dr_status') == 'active')
+        # items_failed = redis_server.llen(failed_tasks)
+        # in_progress_tasks = redis_server.llen(in_progress_tasks)
+        # Timestamp = datetime.now().strftime('%d/%m/%Y %I:%M:%S %p')
 
-        logger.info("%s, %s, %s, %s, %s, %s", settings.mid_server, items_in_queue, items_in_progress, items_failed, in_progress_tasks, Timestamp)        
+        # logger.info("%s, %s, %s, %s, %s, %s", settings.mid_server, items_in_queue, items_in_progress, items_failed, in_progress_tasks, Timestamp)        
 
         # send_logs.send_data_to_flask(0, f'Service up...',  service_name)
                                                                                                        
