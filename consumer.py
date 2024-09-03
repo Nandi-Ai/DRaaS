@@ -87,23 +87,25 @@ def get_id_status(ID):
     return commands['result']
 
 
+    
+
 # funtion that checks if there is some stucked jobs or failed jobs 
-def check_jobs(KEY_NAME):
-    if KEY_NAME == "in_progress_tasks":
-        print("stuck_jobs ")
+def check_jobs(taskCommandID):
+    task_status = redis_server.get(taskCommandID)
+    
+    if task_status == "in_progress_tasks":
+        # print("task command is stuck ")
+        print("task command is in progress")
+    elif task_status == "failed_tasks":
+        print("task command is failed")
         
-        second = 120 # 2 minute
-    elif KEY_NAME == "failed_tasks":
-        print(" failed_jobs")
-        
-        second = 600 # 10 minute
     else:
-        print(f"Unknown KEY_NAME: {KEY_NAME}")
+        print(f"command maybe stuck: {task_status}")
+        redis_remove_list(taskCommandID, in_progress_tasks)
         return False
     
     status = False
     
-    jobs = redis_server.smembers(KEY_NAME)
     for job in jobs:
         try:
             task = job.decode('utf-8')
@@ -154,7 +156,7 @@ def main():
                 # if job is stuck more than 2 minute it will try to process one more time.
                 stuck_jobs = check_jobs(in_progress_tasks)
                 if stuck_jobs:
-                    print("there is some stuck jobs...")
+                    print("there is stuck jobs...")
                     taskFromQueue = rabbitmq_queue_get(queue_name)
                     break
                 else:
@@ -176,9 +178,7 @@ def main():
         print(f'Queue length: {q_len}')
         if taskFromQueue is not None:
                 
-                taskCommandID=taskFromQueue["command_number"]
-                ### TODO FOR 10 MIN (Let's think what to do)
-                redis_server.set(taskCommandID,"in_progress")
+                taskCommandID = taskFromQueue["command_number"]
                 send_logs.send_data_to_flask(0,'Getting data from queue...',   service_name)
                 fix_quotes = re.sub("'", "\"", taskFromQueue)
                 no_none = re.sub("None", "\"\"", fix_quotes)
@@ -204,7 +204,8 @@ def main():
                 print(f"api_status: {api_dr_status}")
                 if 'failed' in api_dr_status:
                     # update Redis with new status and push to failed queue if not exists
-                    redis_server.set(taskCommandID,"failed")
+                    redis_set_list(taskCommandID, "failed")
+                    # redis_server.set(taskCommandID, "failed")
                     continue
 
                 if json_req["command"] != "":
@@ -218,9 +219,10 @@ def main():
             continue
 
 
-        # redis_set("in_progress_tasks", json_req)
         #### PUSH TO RABBIT "in_progress_tasks"
-        print(f"req_id: {req_id}... set in progress")
+        # pushing in_progress task in rabbitmq queue 
+        redis_set_list(taskCommandID, "in_progress", taskFromQueue)
+        print(f"taskCommandID: {taskCommandID} is push and set in progress")
         send_logs.send_data_to_flask(0, f"Request {req_id} in progress ",  service_name)
         # redis_server.set(name="current_task_queue", value=json.dumps({"id": req_id, "switch_ip": req_switch_ip, "command": req_cmd}))
         switch_user = None
@@ -253,7 +255,7 @@ def main():
                 if not connected:
                     # If failed to connect after MAX attempts, send a status update to ServiceNow
                     error_message = f"Failed to establish SSH connection to {req_switch_ip} after {SSHClient.MAX_RETRIES} attempts."
-                    redis_server.set(taskCommandID,"failed")
+                    redis_set_list(taskCommandID, "failed")
                     send_status_update(req_id, "failed", error_message)
                     continue
                 send_logs.send_data_to_flask(0, f'closing ssh client connection...',  service_name)
@@ -293,7 +295,7 @@ def main():
                             except Exception as error:
                                 output = f"{error}"
                                 send_logs.send_data_to_flask(1, f'Exception, req_id: {req_id}, Error: {error}',  service_name)
-                                redis_server.set(taskCommandID,"failed")
+                                redis_set_list(taskCommandID, "failed") 
                                 send_status_update(req_id, "failed", error)
 
                                 # Update the credentials with a "failed" status if not already present
@@ -305,7 +307,7 @@ def main():
                                     output = f"{output_message}\n{output}"
                                 else:
                                     output = f"{output}"
-                                redis_server.set(taskCommandID,"completed")
+                                redis_server.set(taskCommandID, "completed")
                                 # testing
                                 rabbit_server.basic_publish(exchange="",
                                                             routing_key=completed_tasks,
@@ -340,7 +342,7 @@ def main():
                         except Exception as error:
                             output = f"{error}"
                             send_logs.send_data_to_flask(1, f'id: {req_id} failed, {error}',  service_name)
-                            redis_set("failed_tasks", json_req)
+                            redis_set(taskCommandID, "failed", EX=1200)
                             # rabbitmq_push(json_req, "failed")
                             send_status_update(req_id, "failed", error)
                             
@@ -353,13 +355,8 @@ def main():
                                 output = f"{output_message}\n{output}"
                             else:
                                 output = f"{output}"
-                            redis_set("completed_tasks", json_req)
-                            # testing 
-                            rabbit_server.basic_publish(exchange="",
-                                                        routing_key=completed_tasks,
-                                                        body=json.dumps(json_req),
-                                                        properties=pika.BasicProperties(delivery_mode=2))
-                            
+                            redis_set(taskCommandID, "completed_tasks")
+                            # testing                             
                             task_sts = json.loads(redis_server.get(req_id).decode())["status"]
                             send_status_update(req_id, task_sts, output)
                             update_credential_dict(req_switch_ip, retrieved_user, retrieved_password, "success")
@@ -468,7 +465,7 @@ def main():
                                             req_cmd=req_cmd, destination=destination, gateway=gateway, req_vlans=req_vlans,req_interface_name=req_interface_name)
         else:
             print(f"No matching switch found for IP: {req_switch_ip}")
-            redis_set("failed_tasks", json_req)
+            redis_set(taskCommandID, "failed", EX=1200)
             send_status_update(json_req, "failed", "Could not find switch for IP")
 
         sleep(10)

@@ -6,7 +6,7 @@ import glv; import redis
 load_dotenv()
 from time import sleep, time
 import settings; from settings import *; settings.init()
-
+import send_logs
 from rabbitmq import *
 
 rabbit_server = rabbit_connection()
@@ -22,6 +22,7 @@ redis_server = redis.StrictRedis(charset="utf=8", decode_responses=True)
 queue_name = glv.api_queue_name
 completed_tasks = glv.completed_tasks
 failed_tasks = glv.failed_tasks
+incomplete_tasks = glv.incomplete_tasks
 in_progress_tasks = glv.in_progress_tasks
 update_req_url = settings.url + "/SetCommandStatus"
 managment_logs_url = settings.url + "/postSwitchManagmentLogs"
@@ -164,98 +165,53 @@ def get_task_status(task):
 
 def redis_set_key(key_name, value):
     redis_server.set(key_name,value)
+    
+    
 
-def redis_set(KEY_NAME="", TASK=""):
+def redis_remove_list(taskCommandID="", task_status=""):
+    if task_status == "in_progress":
+        allTasksinList = redis_server.lrange("inprogress_list", 0, -1)
+        
+        for task in allTasksinList:
+            taskCommandIDL = task["command_number"]
+            if taskCommandIDL == taskCommandID:
+                redis_server.lrem("inprogress_list", 10, task)
+                print(f"removed {taskCommandID} from list...")
+                rabbitmq_push(task, incomplete_tasks)
+                send_status_update(taskCommandID, "incomplete", "taking too long to process")
+                send_logs.send_data_to_flask(0, f'task {taskCommandID} is stuck. pushing to incomplete_tasks',  "consumer")
+                return True
+            
+        print(f"didnt find {taskCommandID} in list")
+        return False
+
+def redis_set_list(taskCommandID="", task_status="", full_task=""):
     try:
-        task = {
-            'TASK': TASK,
-            'TIME': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        }
-        json_task = json.dumps(task)
-        isSet = redis_server.sadd(KEY_NAME, json_task)
-        if isSet:
-          print(f"Pushed key name: {KEY_NAME}. task: {TASK}... Successfully")
-        logger.info('Redis set - Key: %s, Value: %s', KEY_NAME, TASK)
-        send_logs_to_api(f'Redis set - Key: {KEY_NAME}, Value: {TASK}', 'info', settings.mid_server)
+        if task_status == "in_progress":
+            redis_server.lpush(in_progress_tasks, full_task)
+            redis_server.set(taskCommandID, task_status, ex=600) # 10 minute
+            print(f"***** taskCommandID: {taskCommandID} is set and push redis in_progress queue: *****")
+        else:
+            redis_server.set(taskCommandID, task_status)
+            print(f"***** taskCommandID: {taskCommandID} is set in {task_status}  *****")
+            
+        logger.info('Redis set - Key: %s, Value: %s', taskCommandID, task_status)
+        send_logs_to_api(f'Redis set - Key: {taskCommandID}, Value: {task_status}', 'info', settings.mid_server)
         
-    except Exception as e:
+    except Exception as err:
         send_logs_to_api(f'Error in updating API', 'error', settings.mid_server, datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), '123')
-        logger.error('Error in redis_set: %s', str(e))
+        logger.error('Error in redis_set: %s', str(err))
 
 
-
-# testing
-# def rabbitmq_push(task, queue_name=""):
-#     try:
-
-#         target_queue = None
-#         if queue_name == "completed":
-#             target_queue = completed_tasks
-#         elif queue_name == "failed":
-#             target_queue = failed_tasks
-#         elif queue_name == "active" or queue_name == "in_progress":
-#             target_queue = in_progress_tasks
-        
-#         if target_queue:
-#             rabbit_server.basic_publish(
-#                 exchange='',
-#                 routing_key=target_queue,
-#                 body=json.dumps(task),
-#                 properties=pika.BasicProperties(
-#                     delivery_mode=2  # Make message persistent
-#                 )
-#             )
-#             # logger.info('RabbitMQ set - Key: %s, Value: %s', KEY, VALUE)
-#             print(f"Pushed {task} with value {queue_name} to {target_queue} Successfully")
-#             # send_logs_to_api(f'RabbitMQ set - Key: {KEY}, Value: {VALUE}', 'info', 'mid_server')
-#         else:
-#             logger.warning('Invalid state for %s', queue_name)
-#             # send_logs_to_api(f'Invalid task state: {VALUE}', 'warning', 'mid_server')
-#     except Exception as err:
-#         # logger.error('Failed to set in RabbitMQ: %s', str(err))
-#         pass
-        # send_logs_to_api(f'Failed to set in RabbitMQ: {str(err)}', 'error', 'mid_server')
-
-
-# def get_task_status_by_req_id(json_req):
-#     queues = [queue_name, completed_tasks, failed_tasks, in_progress_tasks]    
-
-#     for method_frame, properties, body in rabbit_server.consume(queue=queue_name, inactivity_timeout=1):
-#         if body:
-#             task = json.loads(body)
-#             if task.get('req_id') == json_req:
-#                 status = task.get('status')
-#                 print(f"Task found: {task}")
-#                 print(f"Task status: {status}")
-#                 rabbit_server.basic_ack(method_frame.delivery_tag)  # Acknowledge the message
-#                 return status  # Return the found status
-#         else:
-#             break  # No more messages in the queue
-#     print(f"Task with req_id {json_req} not found in queue: {queue_name}")
-    # return Nonessages in queue: {rq}")
-
-
-# # TODO Check if there is built in option to check on all queues 
-# def search_task_in_queues(json_req):
-#     queues = [queue_name, completed_tasks, failed_tasks, in_progress_tasks]
-
-#     for rq in queues:        
-#         while True:
-#             method_frame, header_frame, body = rabbit_server.basic_get(queue=rq, auto_ack=False)
-#             if method_frame:
-#                 try:
-#                     task = json.loads(body) 
-#                     print(task)
-#                     if task.get("record_id") == json_req.get("record_id"):
-#                         print(f"Found matching task in {rq}: {task}")
-#                         rabbit_server.basic_ack(delivery_tag=method_frame.delivery_tag)
-#                         status = json_req.get("dr_status")
-#                         return task, rq, status
-#                 except json.JSONDecodeError as err:
-#                     print(f"Error decoding JSON from {rq}: {err}")
-#             else:
-#                 break            
-#     return None, None, None
+def rabbitmq_push(TASK, QUEUE_NAME):
+    try:
+        rabbit_server.basic_publish(exchange="",
+                                    routing_key=QUEUE_NAME,
+                                    body=json.dumps(TASK),
+                                    properties=pika.BasicProperties(delivery_mode=2))
+        print("***** Queue Successfully Pushed *****")
+    except Exception as err:
+        print("***** Error While pushing task in queue Error_msg: ", err, " *****")
 
 
 

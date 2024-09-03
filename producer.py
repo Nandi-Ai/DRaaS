@@ -126,11 +126,8 @@ def queue_push(task):
                     print(f"Job {api_task_record_id} pushed to queue and waiting to be executed")
                     # redis_server.rpush(queue_name, str(task))
                 
-                # pushing everything inside rabbitmq 
-                    rabbit_server.basic_publish(exchange="",
-                                                routing_key=queue_name,
-                                                body=json.dumps(task),
-                                                properties=pika.BasicProperties(delivery_mode=2))
+                    # pushing tasks inside rabbitmq 
+                    rabbitmq_push(task, queue_name)
                 
                     print(f"Job {api_task_record_id} pushed to queue {queue_name} and waiting to be executed")
                     return
