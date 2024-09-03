@@ -163,13 +163,12 @@ def get_task_status(task):
     redisJobStatus = redis_server.get(task_command_id)
     return redisJobStatus
 
-def redis_set_key(key_name, value):
-    redis_server.set(key_name,value)
+def redis_set(taskCommandID, taskStatus):
+    redis_server.set(taskCommandID,taskStatus)
     
     
 
-def redis_remove_list(taskCommandID="", task_status=""):
-    if task_status == "in_progress":
+def redis_remove_list(taskCommandID="", task_status="", output = ""):
         allTasksinList = redis_server.lrange("inprogress_list", 0, -1)
         
         for task in allTasksinList:
@@ -177,26 +176,34 @@ def redis_remove_list(taskCommandID="", task_status=""):
             if taskCommandIDL == taskCommandID:
                 redis_server.lrem("inprogress_list", 10, task)
                 print(f"removed {taskCommandID} from list...")
-                rabbitmq_push(task, incomplete_tasks)
-                send_status_update(taskCommandID, "incomplete", "taking too long to process")
-                send_logs.send_data_to_flask(0, f'task {taskCommandID} is stuck. pushing to incomplete_tasks',  "consumer")
+                if task_status == "in_progress":
+                    rabbitmq_push(task, incomplete_tasks)
+                    send_status_update(taskCommandID, "incomplete", "taking too long to process")
+                    send_logs.send_data_to_flask(0, f'task {taskCommandID} is stuck. pushing to incomplete_tasks',  "consumer")
+                if task_status == "failed":
+                    send_status_update(req_id, "failed", output)
+                    send_logs.send_data_to_flask(0, f'task {taskCommandID} failed',  "consumer")
+
                 return True
             
         print(f"didnt find {taskCommandID} in list")
         return False
 
-def redis_set_list(taskCommandID="", task_status="", full_task=""):
+def redis_set_list(taskCommandID="", taskStatus="", full_task="",output=""):
     try:
-        if task_status == "in_progress":
+        if taskStatus == "failed":
+            redis_set(taskCommandID, taskStatus)
+            redis_remove_list(taskCommandID, taskStatus,output)
+        elif taskStatus == "in_progress":
             redis_server.lpush(in_progress_tasks, full_task)
-            redis_server.set(taskCommandID, task_status, ex=600) # 10 minute
+            redis_server.set(taskCommandID, taskStatus, ex=600) # 10 minute
             print(f"***** taskCommandID: {taskCommandID} is set and push redis in_progress queue: *****")
         else:
-            redis_server.set(taskCommandID, task_status)
-            print(f"***** taskCommandID: {taskCommandID} is set in {task_status}  *****")
+            redis_server.set(taskCommandID, taskStatus)
+            print(f"***** taskCommandID: {taskCommandID} is set in {taskStatus}  *****")
             
-        logger.info('Redis set - Key: %s, Value: %s', taskCommandID, task_status)
-        send_logs_to_api(f'Redis set - Key: {taskCommandID}, Value: {task_status}', 'info', settings.mid_server)
+        logger.info('Redis set - Key: %s, Value: %s', taskCommandID, taskStatus)
+        send_logs_to_api(f'Redis set - Key: {taskCommandID}, Value: {taskStatus}', 'info', settings.mid_server)
         
     except Exception as err:
         send_logs_to_api(f'Error in updating API', 'error', settings.mid_server, datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), '123')

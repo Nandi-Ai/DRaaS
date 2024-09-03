@@ -341,10 +341,8 @@ def main():
                                 output = "operation is done."
                         except Exception as error:
                             output = f"{error}"
-                            send_logs.send_data_to_flask(1, f'id: {req_id} failed, {error}',  service_name)
-                            redis_set(taskCommandID, "failed", EX=1200)
-                            # rabbitmq_push(json_req, "failed")
-                            send_status_update(req_id, "failed", error)
+                            redis_set_list(taskCommandID, "failed", taskFromQueue,output)
+                            # send_logs.send_data_to_flask(1, f'id: {req_id} failed, {error}',  service_name)
                             
                             # Update the credentials with a "failed" status if not already present
                             if req_switch_ip not in credential_dict or credential_dict[req_switch_ip]["status"] != "failed":
