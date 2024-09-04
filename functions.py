@@ -14,7 +14,8 @@ logging.getLogger('pika').setLevel(logging.CRITICAL)
 
 config = configparser.ConfigParser()
 config.sections()
-config.read('./config/parameters.ini')
+config.read('../config/parameters.ini')
+# config.read('./config/parameters.ini')
 
 logger = logging.getLogger(__name__)
 redis_server = redis.Redis(host='localhost', port=6379, db=0)
@@ -157,25 +158,24 @@ def run_command_and_get_json(ip_address, username, password, command):
 
 
 
+def notify(task, status, msg =""):
+    recordID=task["record_id"]
+    taskCommandID=task["command_number"]
+    if status == "failed":
+        send_status_update(recordID, "failed", msg)
+        send_logs.send_data_to_flask(0, f'msg {taskCommandID}',  "consumer")
+
 
 def get_task_status(task):
-    
-    api_task_record_id=task["record_id"]
+    return
     task_command_id=task["command_number"]
     redisJobStatus = redis_server.get(task_command_id)
     return redisJobStatus
 
+
 def redis_set(taskCommandID, taskStatus):
     redis_server.set(taskCommandID,taskStatus)
-    
 
-    ##FIX IT
-def notify(task, status, flaskMsg =""):
-    recordID=task["record_id"]
-    taskCommandID=task["command_number"]
-    if status == "failed":
-        send_status_update(recordID, "failed", output)
-        send_logs.send_data_to_flask(0, f'task {taskCommandID} failed',  "consumer")
 
 def redis_remove_list(taskCommandID="", task_status="", output = ""):
         allTasksinList = redis_server.lrange("inprogress_list", 0, -1)
@@ -190,8 +190,8 @@ def redis_remove_list(taskCommandID="", task_status="", output = ""):
                     send_status_update(taskCommandID, "incomplete", "taking too long to process")
                     send_logs.send_data_to_flask(0, f'task {taskCommandID} is stuck. pushing to incomplete_tasks',  "consumer")
                 if task_status == "failed":
-                    notify(req_id, "failed")
-                    send_status_update(req_id, "failed", output)
+                    notify(taskCommandIDL, "failed", "task is failed")
+                    send_status_update(taskCommandIDL, "failed", output)
                     send_logs.send_data_to_flask(0, f'task {taskCommandID} failed',  "consumer")
 
                 return True
@@ -222,7 +222,6 @@ def redis_set_list(taskCommandID="", taskStatus="", full_task="",output=""):
 
 
 def rabbitmq_push(TASK, QUEUE_NAME):
-             
     try:
         rabbit_server.basic_publish(exchange="",
                                     routing_key=QUEUE_NAME,
@@ -233,14 +232,13 @@ def rabbitmq_push(TASK, QUEUE_NAME):
         print("***** Error While pushing task in queue Error_msg: ", err, " *****")
 
 
-
 def push_in_wait_queue(task):
     time = round(time.time())
     if task["attempt"]:
         attempts = task["attempt"]
         if attempts > max_attempts:
-            notify(TASK, "failed")
-            return
+            notify(task, "failed")
+            return False
         else:
           task["attempt"] = attempts + 1
     else: 
@@ -249,12 +247,10 @@ def push_in_wait_queue(task):
             "attempt": 1
         }
     task.update(jsonToAppend)
-    rabbitmq_push(task,wait_queue)
+    rabbitmq_push(task, wait_queue)
+    return task
   
-
-
-
-
+  
 def rabbitmq_queue_get(queue_name):
     try:    
         method_frame, header_frame, body = rabbit_server.basic_get(queue=queue_name, auto_ack=True)
@@ -272,24 +268,26 @@ def rabbitmq_queue_get(queue_name):
         send_logs_to_api(f'Error while getting rabbitmq queue: {str(err)}', 'error', settings.mid_server)
         return None
 
-
 def check_wait_queue():
-    current_time = round(time.time())
+    current_time = round(time())
 
-    task=rabbitmq_queue_get(wait_queue)
+    task = rabbitmq_queue_get(wait_queue)
     if task:
         TaskTime=task["time"]
         attempts=task["attempt"]
-        if (current_time - TaskTime > 300):
+        if (current_time - TaskTime > 300) :
             task["attempt"] = attempts + 1
             return task
         else:
-            push_in_wait_queue(task)
-
-    
-    print("No queue found in wait queue")
-    return None
-            
+            result = push_in_wait_queue(task)
+            if result:
+                return result
+            else:
+                return False
+    else:
+        print("No queue found in wait queue")
+        return False
+                
     
     
 

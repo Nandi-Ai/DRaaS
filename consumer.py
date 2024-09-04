@@ -72,25 +72,25 @@ def get_id_status(ID):
     
 
 # funtion that checks if there is some stucked jobs or failed jobs 
-def check_jobs(taskCommandID):
-    task_status = redis_server.get(taskCommandID)
+# def check_jobs(taskCommandID):
+#     task_status = redis_server.get(taskCommandID)
     
-    if task_status == "in_progress_tasks":
-        print("task command is in progress")
-    elif task_status == "failed_tasks":
-        print("task command is failed")
+#     if task_status == "in_progress_tasks":
+#         print("task command is in progress")
+#     elif task_status == "failed_tasks":
+#         print("task command is failed")
         
-    else:
-        print(f"command maybe stuck: {task_status}")
-        redis_remove_list(taskCommandID, in_progress_tasks)
-        return False
+#     else:
+#         print(f"command maybe stuck: {task_status}")
+#         redis_remove_list(taskCommandID, in_progress_tasks)
+#         return False
     
-    status = False
+#     status = False
     
-    if status:
-        return True
-    else: 
-        return False
+#     if status:
+#         return True
+#     else: 
+#         return False
 
 
 # Main function
@@ -108,25 +108,26 @@ def main():
                     print("Task already running")
                     continue
                 else:
-                  break
+                    break
             else:
 
-                #### Fix this
                 taskFromQueue = check_wait_queue()
-                # if job is stuck more than 2 minute it will try to process one more time.
-                stuck_jobs = check_jobs(in_progress_tasks)
-                if stuck_jobs:
-                    print("there is stuck jobs...")
-                    taskFromQueue = rabbitmq_queue_get(from_api_queue)
+                if taskFromQueue:
                     break
-                else:
-                    # if job failed 10 minutes ago this will try to process one more time
-                    failed_jobs = check_jobs(failed_tasks)
-                    if failed_jobs:
-                        taskFromQueue = rabbitmq_queue_get(from_api_queue)
+
+                # if job is stuck more than 2 minute it will try to process one more time.
+                # if stuck_jobs:
+                #     print("there is stuck jobs...")
+                #     taskFromQueue = rabbitmq_queue_get(from_api_queue)
+                #     break
+                # else:
+                #     # if job failed 10 minutes ago this will try to process one more time
+                #     failed_jobs = check_jobs(failed_tasks)
+                #     if failed_jobs:
+                #         taskFromQueue = rabbitmq_queue_get(from_api_queue)
                         
-                        print("there is failed jobs trying to proccess one more time")
-                        break
+                #         print("there is failed jobs trying to proccess one more time")
+                #         break
    
             print("Queue is empty. Waiting...")
             logger.info("Queue is empty. Waiting...." )
@@ -137,7 +138,6 @@ def main():
 
         print(f'Queue length: {q_len}')
         if taskFromQueue is not None:
-                
                 taskCommandID = taskFromQueue["command_number"]
                 send_logs.send_data_to_flask(0,'Getting data from queue...',   service_name)
                 taskFromQueuefixQuotes = re.sub("'", "\"", taskFromQueue)
