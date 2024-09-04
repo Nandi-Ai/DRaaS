@@ -16,7 +16,7 @@ settings.init()
 
 # Create a Redis server connections.
 redis_server = redis.Redis()
-queue_name = glv.api_queue_name
+from_api_queue = glv.api_queue_name
 in_progress_tasks = glv.in_progress_tasks
 completed_tasks = glv.completed_tasks
 credential_dict = glv.credential_dict
@@ -94,7 +94,6 @@ def check_jobs(taskCommandID):
     task_status = redis_server.get(taskCommandID)
     
     if task_status == "in_progress_tasks":
-        # print("task command is stuck ")
         print("task command is in progress")
     elif task_status == "failed_tasks":
         print("task command is failed")
@@ -106,30 +105,6 @@ def check_jobs(taskCommandID):
     
     status = False
     
-    for job in jobs:
-        try:
-            task = job.decode('utf-8')
-            task_data = json.loads(task)
-        except Exception as err:
-            print(f"error while decoding stuck job: {task}... Error: ", err)
-            continue
-        current_time = datetime.now()
-        task_time_str = task_data.get("TIME")
-        task_time = datetime.fromisoformat(task_time_str)
-        time_difference = current_time - task_time
-        if time_difference.total_seconds() > second:
-            status = True
-            print(f"found task {time_difference.total_seconds()} second {KEY_NAME}. Task: {task_data}...")
-            try:
-                redis_server.srem(KEY_NAME, job)         
-                rabbit_server.basic_publish(exchange="",
-                                            routing_key=queue_name,
-                                            body=json.dumps(task_data),
-                                            properties=pika.BasicProperties(delivery_mode=2))        
-                continue
-            except Exception as err:
-                print("error while removing job from set..", err)
-                continue
     if status:
         return True
     else: 
@@ -142,10 +117,10 @@ def main():
     while True:
 
         while True:
-            q_len = rabbit_server.queue_declare(queue=queue_name, durable=True)
+            q_len = rabbit_server.queue_declare(queue=from_api_queue, durable=True)
             q_len = q_len.method.message_count
             if q_len > 0:
-                taskFromQueue = rabbitmq_queue_get(queue_name)
+                taskFromQueue = rabbitmq_queue_get(from_api_queue)
                 taskStatus = get_task_status(taskFromQueue)
                 if "in_progress" == taskStatus or "completed" == taskStatus:
                     print("Task already running")
@@ -157,13 +132,13 @@ def main():
                 stuck_jobs = check_jobs(in_progress_tasks)
                 if stuck_jobs:
                     print("there is stuck jobs...")
-                    taskFromQueue = rabbitmq_queue_get(queue_name)
+                    taskFromQueue = rabbitmq_queue_get(from_api_queue)
                     break
                 else:
                     # if job failed 10 minutes ago this will try to process one more time
                     failed_jobs = check_jobs(failed_tasks)
                     if failed_jobs:
-                        taskFromQueue = rabbitmq_queue_get(queue_name)
+                        taskFromQueue = rabbitmq_queue_get(from_api_queue)
                         
                         print("there is failed jobs trying to proccess one more time")
                         break
@@ -180,10 +155,10 @@ def main():
                 
                 taskCommandID = taskFromQueue["command_number"]
                 send_logs.send_data_to_flask(0,'Getting data from queue...',   service_name)
-                fix_quotes = re.sub("'", "\"", taskFromQueue)
-                no_none = re.sub("None", "\"\"", fix_quotes)
-                json_req = json.loads(no_none)
-                req_id = json_req["record_id"]
+                taskFromQueuefixQuotes = re.sub("'", "\"", taskFromQueue)
+                taskFromQueueNoNone = re.sub("None", "\"\"", taskFromQueuefixQuotes)
+                json_req = json.loads(taskFromQueueNoNone)
+                taskFromQueueRecordID = json_req["record_id"]
                 req_vlans = json_req["vlans"]
                 req_switch =   json_req["switch"]
                 req_switch_ip = json_req["switch_ip"]
@@ -198,7 +173,7 @@ def main():
                 comments = json_req["description"]
                 comments = f'"{comments}"'
                 priority = json_req["priority"]
-                api_status = get_id_status(req_id)
+                api_status = get_id_status(taskFromQueueRecordID)
                 api_dr_status = api_status[0]['dr_status']
                 
                 print(f"api_status: {api_dr_status}")
@@ -223,8 +198,8 @@ def main():
         # pushing in_progress task in rabbitmq queue 
         redis_set_list(taskCommandID, "in_progress", taskFromQueue)
         print(f"taskCommandID: {taskCommandID} is push and set in progress")
-        send_logs.send_data_to_flask(0, f"Request {req_id} in progress ",  service_name)
-        # redis_server.set(name="current_task_queue", value=json.dumps({"id": req_id, "switch_ip": req_switch_ip, "command": req_cmd}))
+        send_logs.send_data_to_flask(0, f"Request {taskCommandID} in progress ",  service_name)
+        # redis_server.set(name="current_task_queue", value=json.dumps({"id": taskCommandID, "switch_ip": req_switch_ip, "command": req_cmd}))
         switch_user = None
         switch_password = None
         switch_device_type = None
@@ -246,19 +221,19 @@ def main():
                 retrieved_password = switch_password
 
             if (retrieved_user is not None and retrieved_password is not None):
-                send_logs.send_data_to_flask(0,'connecting to sshclient. calling function (SSHClient)...',  service_name)
+                #### TODO move it to ssh connect function
+                send_logs.send_data_to_flask(0,f'connecting to {req_switch_ip}. calling function (SSHClient)',  service_name)
                 ssh_client = SSHClient(req_switch_ip, retrieved_user, retrieved_password)
                 send_logs.send_data_to_flask(0,f'Attempt to establish the SSH connection...',  service_name)
                 # Attempt to establish the SSH connection
-                connected = ssh_client.try_connect(req_id)
-                send_logs.send_data_to_flask(0,f'sshclient status: {connected}...',  service_name)
-                if not connected:
+                sshConnectStatus = ssh_client.try_connect(taskFromQueueRecordID)
+                send_logs.send_data_to_flask(0,f'SSH status: {sshConnectStatus}',  service_name)
+                if not sshConnectStatus:
                     # If failed to connect after MAX attempts, send a status update to ServiceNow
                     error_message = f"Failed to establish SSH connection to {req_switch_ip} after {SSHClient.MAX_RETRIES} attempts."
-                    redis_set_list(taskCommandID, "failed")
-                    send_status_update(req_id, "failed", error_message)
+                    redis_set_list(taskCommandID, "failed",error_message)
                     continue
-                send_logs.send_data_to_flask(0, f'closing ssh client connection...',  service_name)
+                send_logs.send_data_to_flask(0, f'closing ssh connection to {req_switch_ip}',  service_name)
                 ssh_client.close_connection()
 
             if switch_device_type == 'switch':
@@ -275,7 +250,7 @@ def main():
                             try:
                                 if req_cmd != "" and req_port_mode == "":
                                     if req_interface_name != "":
-                                        send_logs.send_data_to_flask(0, 'calling function (run_command_and_get_json)...',  service_name)
+                                        send_logs.send_data_to_flask(0, 'calling function (run_command_and_get_json)',  service_name)
                                         output = run_command_and_get_json(req_switch_ip, retrieved_user, retrieved_password, req_cmd)
                                     else:
                                         send_logs.send_data_to_flask(0, 'calling function (run_command_and_get_json)...',  service_name)
@@ -294,9 +269,9 @@ def main():
 
                             except Exception as error:
                                 output = f"{error}"
-                                send_logs.send_data_to_flask(1, f'Exception, req_id: {req_id}, Error: {error}',  service_name)
+                                send_logs.send_data_to_flask(1, f'Exception, taskFromQueueRecordID: {taskFromQueueRecordID}, Error: {error}',  service_name)
                                 redis_set_list(taskCommandID, "failed") 
-                                send_status_update(req_id, "failed", error)
+                                send_status_update(taskFromQueueRecordID, "failed", error)
 
                                 # Update the credentials with a "failed" status if not already present
                                 if req_switch_ip not in credential_dict or credential_dict[req_switch_ip]["status"] != "failed":
@@ -314,8 +289,8 @@ def main():
                                                             body=json.dumps(json_req),
                                                             properties=pika.BasicProperties(delivery_mode=2))
                                 #### TODO output from where?
-                                task_sts = json.loads(redis_server.get(req_id).decode())["status"]
-                                send_status_update(req_id, task_sts, output)
+                                task_sts = json.loads(redis_server.get(taskFromQueueRecordID).decode())["status"]
+                                send_status_update(taskFromQueueRecordID, task_sts, output)
                                 update_credential_dict(req_switch_ip, retrieved_user, retrieved_password, "success")
 
                     else:
@@ -342,7 +317,7 @@ def main():
                         except Exception as error:
                             output = f"{error}"
                             redis_set_list(taskCommandID, "failed", taskFromQueue,output)
-                            # send_logs.send_data_to_flask(1, f'id: {req_id} failed, {error}',  service_name)
+                            # send_logs.send_data_to_flask(1, f'id: {taskFromQueueRecordID} failed, {error}',  service_name)
                             
                             # Update the credentials with a "failed" status if not already present
                             if req_switch_ip not in credential_dict or credential_dict[req_switch_ip]["status"] != "failed":
@@ -355,8 +330,8 @@ def main():
                                 output = f"{output}"
                             redis_set(taskCommandID, "completed_tasks")
                             # testing                             
-                            task_sts = json.loads(redis_server.get(req_id).decode())["status"]
-                            send_status_update(req_id, task_sts, output)
+                            task_sts = json.loads(redis_server.get(taskFromQueueRecordID).decode())["status"]
+                            send_status_update(taskFromQueueRecordID, task_sts, output)
                             update_credential_dict(req_switch_ip, retrieved_user, retrieved_password, "success")
 
                 # When a task is completed, remove the "current_task" key
@@ -380,7 +355,7 @@ def main():
                             elif action == "removed":
                                 output = f'Cannot delete the VLAN because: {cmd_output}'
                             send_logs.send_data_to_flask(0, 'Calling function (send_gaia_status)...',  service_name)
-                            send_gaia_status(req_id, status_message="status: failed", output=output, error=output,
+                            send_gaia_status(taskFromQueueRecordID, status_message="status: failed", output=output, error=output,
                                             req_cmd=req_cmd, destination=destination, gateway=gateway, req_vlans=req_vlans,req_interface_name=req_interface_name)
                         else:
                             send_logs.send_data_to_flask(0, 'Calling function (get_gaia_interface_info)...',  service_name)
@@ -394,7 +369,7 @@ def main():
                             output_message = f"VLANs {req_vlans} {action} to interface {req_interface_name} on Gaia switch {req_switch_ip}."
                             output = f"{output_message}\n{json_data}"
                             send_logs.send_data_to_flask(0, 'Calling function (send_gaia_status)...',  service_name)
-                            send_gaia_status(req_id, status_message="status: success", output=output, error=None,
+                            send_gaia_status(taskFromQueueRecordID, status_message="status: success", output=output, error=None,
                                             req_cmd=None, destination=None, gateway=None, req_vlans=None,req_interface_name=None)
 
                     ##routing add/remove
@@ -422,7 +397,7 @@ def main():
                             elif action == "removed":
                                 output = f'Cannot delete the route because: {cmd_output}'
 
-                            send_gaia_status(req_id, status_message="status: failed", output=output, error=output,
+                            send_gaia_status(taskFromQueueRecordID, status_message="status: failed", output=output, error=output,
                                             req_cmd=req_cmd, destination=destination, gateway=gateway, req_vlans=req_vlans,req_interface_name=req_interface_name)
 
                         else:
@@ -437,7 +412,7 @@ def main():
                             output_message = f"Route for {destination} {action} on Gaia switch {req_switch_ip}."
                             output = f"{output_message}\n{json_data}"
 
-                            send_gaia_status(req_id, status_message="status: success", output=output, error=None,
+                            send_gaia_status(taskFromQueueRecordID, status_message="status: success", output=output, error=None,
                                             req_cmd=None, destination=None, gateway=None, req_vlans=None,req_interface_name=None)
 
                     if discovery == "1":
@@ -455,11 +430,11 @@ def main():
                         json_data = json.dumps(combined_data, indent=4)
                         output = json_data
 
-                        send_gaia_status(req_id, status_message="status: success", output=output, error=None,
+                        send_gaia_status(taskFromQueueRecordID, status_message="status: success", output=output, error=None,
                                             req_cmd=None, destination=None, gateway=None, req_vlans=None,req_interface_name=None)
 
                 except Exception as error:
-                    send_gaia_status(req_id, status_message="status: failed", output=None, error=error,
+                    send_gaia_status(taskFromQueueRecordID, status_message="status: failed", output=None, error=error,
                                             req_cmd=req_cmd, destination=destination, gateway=gateway, req_vlans=req_vlans,req_interface_name=req_interface_name)
         else:
             print(f"No matching switch found for IP: {req_switch_ip}")

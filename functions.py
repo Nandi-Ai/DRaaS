@@ -47,7 +47,7 @@ class SSHClient:
         self.connection.enable()
 
     def try_connect(self,req_id=None):
-        from consumer import send_status_update
+        # from consumer import send_status_update
         attempts = 0
         while attempts < self.MAX_RETRIES:
             try:
