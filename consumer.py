@@ -227,7 +227,7 @@ def main():
                     if (
                         retrieved_user == switch_user and retrieved_password == switch_password and req_switch_ip in credential_dict and credential_dict[req_switch_ip]["status"] == "failed"):
                         time_since_last_attempt = time() - credential_dict[req_switch_ip]["timestamp"]
-                        if time_since_last_attempt > 300:  # 300 seconds = 5 minutes
+                        if time_since_last_attempt > 300:  # 300 seconds = 5 minutes ####NEED to remove
                             try:
                                 if req_cmd != "" and req_port_mode == "":
                                     if req_interface_name != "":
@@ -280,13 +280,13 @@ def main():
                         try:
                             if req_cmd != "" and req_port_mode == "":
                                 if req_interface_name != "":
-                                    send_logs.send_data_to_flask(0, 'calling function (run_command_and_get_json)...',  service_name)
+                                    send_logs.send_data_to_flask(0, f"running {req_cmd}",  service_name)
                                     output = run_command_and_get_json(req_switch_ip, retrieved_user, retrieved_password, req_cmd)
                                 else:
-                                    send_logs.send_data_to_flask(0, 'calling function (run_command_and_get_json)...',  service_name)
+                                    send_logs.send_data_to_flask(0, f"running {req_cmd}",  service_name)
                                     output = run_command_and_get_json(req_switch_ip, retrieved_user, retrieved_password, req_cmd)
                             else:
-                                send_logs.send_data_to_flask(0, 'calling function (change_interface_mode)...',  service_name)
+                                send_logs.send_data_to_flask(0, f"calling function (change_interface_mode) on {req_switch_ip} ",  service_name)
                                 output = change_interface_mode(req_switch_ip, retrieved_user, retrieved_password, req_interface_name, req_port_mode, req_vlans)
 
                             if glv.added_vlan is not None:  # Check if a VLAN was added
@@ -305,6 +305,7 @@ def main():
                             # Update the credentials with a "failed" status if not already present
                             if req_switch_ip not in credential_dict or credential_dict[req_switch_ip]["status"] != "failed":
                                 update_credential_dict(req_switch_ip, retrieved_user, retrieved_password, "failed")
+                                push_in_wait_queue(taskFromQueue)
 
                         else:
                             if output_message is not None:

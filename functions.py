@@ -222,10 +222,7 @@ def redis_set_list(taskCommandID="", taskStatus="", full_task="",output=""):
 
 
 def rabbitmq_push(TASK, QUEUE_NAME):
-    if QUEUE_NAME == wait_queue:
-        if TASK["attempt"] > max_attempts:
-            notify(TASK, "failed")
-            return            
+             
     try:
         rabbit_server.basic_publish(exchange="",
                                     routing_key=QUEUE_NAME,
@@ -237,13 +234,20 @@ def rabbitmq_push(TASK, QUEUE_NAME):
 
 
 
-def push_in_wait_queue(task, attempt):
+def push_in_wait_queue(task):
     time = round(time.time())
-   
-    jsonToAppend = {
-        "time": time,
-        "attempt": attempt
-    }
+    if task["attempt"]:
+        attempts = task["attempt"]
+        if attempts > max_attempts:
+            notify(TASK, "failed")
+            return
+        else:
+          task["attempt"] = attempts + 1
+    else: 
+        jsonToAppend = {
+            "time": time,
+            "attempt": 1
+        }
     task.update(jsonToAppend)
     rabbitmq_push(task,wait_queue)
   
@@ -270,18 +274,17 @@ def rabbitmq_queue_get(queue_name):
 
 
 def check_wait_queue():
-    wait_time = 5
     current_time = round(time.time())
 
     task=rabbitmq_queue_get(wait_queue)
     if task:
-        waitTime=task["time"]
+        TaskTime=task["time"]
         attempts=task["attempt"]
-        if (current_time - wait_time > 300):
+        if (current_time - TaskTime > 300):
             task["attempt"] = attempts + 1
             return task
         else:
-            rabbitmq_push(task, wait_queue)
+            push_in_wait_queue(task)
 
     
     print("No queue found in wait queue")
