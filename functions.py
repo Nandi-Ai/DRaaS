@@ -167,7 +167,6 @@ def notify(task, status, msg =""):
 
 
 def get_task_status(task):
-    return
     task_command_id=task["command_number"]
     redisJobStatus = redis_server.get(task_command_id)
     return redisJobStatus
