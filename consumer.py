@@ -52,24 +52,6 @@ except ImportError:
     # systemd.journal module is not available, use basic console logging
     logging.basicConfig(level=logging.DEBUG, format=f'%(asctime)s - %(levelname)-8s - %(message)s', datefmt=time_format)
 
-
-
-def rabbitmq_queue_get(queue_name):
-    try:    
-        method_frame, header_frame, body = rabbit_server.basic_get(queue=queue_name, auto_ack=True)
-
-        if method_frame:
-            message = body.decode()
-            print("Request from RabbitMQ:", message)
-            logger.info('RabbitMQ queue get - Request: %s', message)
-            send_logs_to_api('RabbitMQ queue get Request', 'info', settings.mid_server)
-            return message
-        else:
-            return None    
-    except Exception as err:
-        logger.error('Error while getting rabbitmq queue: %s', str(err))
-        send_logs_to_api(f'Error while getting rabbitmq queue: {str(err)}', 'error', settings.mid_server)
-        return None
     
 
 # Function to get credentials from the dictionary
@@ -128,6 +110,9 @@ def main():
                 else:
                   break
             else:
+
+                #### Fix this
+                taskFromQueue = check_wait_queue()
                 # if job is stuck more than 2 minute it will try to process one more time.
                 stuck_jobs = check_jobs(in_progress_tasks)
                 if stuck_jobs:

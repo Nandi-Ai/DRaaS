@@ -29,6 +29,7 @@ update_req_url = settings.url + "/SetCommandStatus"
 managment_logs_url = settings.url + "/postSwitchManagmentLogs"
 added_vlan = glv.added_vlan
 credential_dict = glv.credential_dict
+max_attempts = 3
 
 #SSH connection function
 class SSHClient:
@@ -167,7 +168,14 @@ def get_task_status(task):
 def redis_set(taskCommandID, taskStatus):
     redis_server.set(taskCommandID,taskStatus)
     
-    
+
+    ##FIX IT
+def notify(task, status, flaskMsg =""):
+    recordID=task["record_id"]
+    taskCommandID=task["command_number"]
+    if status == "failed":
+        send_status_update(recordID, "failed", output)
+        send_logs.send_data_to_flask(0, f'task {taskCommandID} failed',  "consumer")
 
 def redis_remove_list(taskCommandID="", task_status="", output = ""):
         allTasksinList = redis_server.lrange("inprogress_list", 0, -1)
@@ -182,6 +190,7 @@ def redis_remove_list(taskCommandID="", task_status="", output = ""):
                     send_status_update(taskCommandID, "incomplete", "taking too long to process")
                     send_logs.send_data_to_flask(0, f'task {taskCommandID} is stuck. pushing to incomplete_tasks',  "consumer")
                 if task_status == "failed":
+                    notify(req_id, "failed")
                     send_status_update(req_id, "failed", output)
                     send_logs.send_data_to_flask(0, f'task {taskCommandID} failed',  "consumer")
 
@@ -213,64 +222,73 @@ def redis_set_list(taskCommandID="", taskStatus="", full_task="",output=""):
 
 
 def rabbitmq_push(TASK, QUEUE_NAME):
-
+    if QUEUE_NAME == wait_queue:
+        if TASK["attempt"] > max_attempts:
+            notify(TASK, "failed")
+            return            
     try:
         rabbit_server.basic_publish(exchange="",
                                     routing_key=QUEUE_NAME,
                                     body=json.dumps(TASK),
                                     properties=pika.BasicProperties(delivery_mode=2))
-        print("***** Queue Successfully Pushed *****")
+        print(f"***** Successfully Pushed to {QUEUE_NAME} *****")
     except Exception as err:
         print("***** Error While pushing task in queue Error_msg: ", err, " *****")
 
 
 
-
-def push_in_wait_queue(TASK, QUEUE_NAME, ATTEMPT):
-    task = {
-        "TASK": TASK,
-        "TIME": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "ATTEMPT": ATTEMPT
+def push_in_wait_queue(task, attempt):
+    time = round(time.time())
+   
+    jsonToAppend = {
+        "time": time,
+        "attempt": attempt
     }
-    try:
-        rabbit_server.basic_publish(exchange="",
-                                    routing_key=QUEUE_NAME,
-                                    body=json.dumps(task),
-                                    properties=pika.BasicProperties(delivery_mode=2))
-        print("***** Task Successfully Pushed in Wait Queue *****")
+    task.update(jsonToAppend)
+    rabbitmq_push(task,wait_queue)
+  
+
+
+
+
+def rabbitmq_queue_get(queue_name):
+    try:    
+        method_frame, header_frame, body = rabbit_server.basic_get(queue=queue_name, auto_ack=True)
+
+        if method_frame:
+            message = body.decode()
+            print("Request from RabbitMQ:", message)
+            logger.info('RabbitMQ queue get - Request: %s', message)
+            send_logs_to_api('RabbitMQ queue get Request', 'info', settings.mid_server)
+            return message
+        else:
+            return None    
     except Exception as err:
-        print("***** Error While pushing task in wait queue. err-msg: ", err, " *****")
+        logger.error('Error while getting rabbitmq queue: %s', str(err))
+        send_logs_to_api(f'Error while getting rabbitmq queue: {str(err)}', 'error', settings.mid_server)
+        return None
 
 
 def check_wait_queue():
-    attempt_count = 3
     wait_time = 5
-    
-    method_frame, header_frame, body = rabbit_server.basic_get(queue=queue_name, auto_ack=True)
-    if method_frame:
-        task = body.decode()
-        current_time = datetime.now()
-        print(task["TIME"],  task["ATTEMPT"])
-        task_time = datetime.strptime(task["TIME"], "%Y-%m-%d %H:%M")       
-        time_difference = current_time - task_time
-        
-        if time_difference > timedelta(minutes=wait_time) and int(task["ATTEMPT"]) < attempt_count:
-            attempt = int(task["ATTEMPT"]) + 1
-            push_in_wait_queue(task, wait_queue, attempt)
-            return True
-        elif int(task["ATTEMPT"]) >= attempt_count:
-            # we dont need to remove queue to manually beacuae auto_ack is doing automaticly.
-            taskCommandID = task["command_number"]
-            redis_set(taskCommandID, "failed")
-            return False
+    current_time = round(time.time())
+
+    task=rabbitmq_queue_get(wait_queue)
+    if task:
+        waitTime=task["time"]
+        attempts=task["attempt"]
+        if (current_time - wait_time > 300):
+            task["attempt"] = attempts + 1
+            return task
+        else:
+            rabbitmq_push(task, wait_queue)
+
     
     print("No queue found in wait queue")
-    return False
+    return None
             
     
     
-    
-
 
 # Function to update the credentials dictionary with the status
 def update_credential_dict(ip, username, password, status):
