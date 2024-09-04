@@ -7,5 +7,6 @@ failed_tasks = "failed_tasks"
 in_progress_tasks = "in_progress_tasks"
 completed_tasks = "completed_tasks"
 incomplete_tasks = "incomplete_tasks"
+wait_queue = "wait_queue"
 # Dictionary to store credentials of switches
 credential_dict = {}

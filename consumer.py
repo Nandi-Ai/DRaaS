@@ -109,7 +109,7 @@ def check_jobs(taskCommandID):
         return True
     else: 
         return False
-    
+
 
 # Main function
 def main():
@@ -240,11 +240,7 @@ def main():
                 if (retrieved_user is not None and retrieved_password is not None):
                     # Check if the credentials status is 'failed' and the last attempt was 5 minutes ago
                     if (
-                        retrieved_user == switch_user and
-                        retrieved_password == switch_password and
-                        req_switch_ip in credential_dict and
-                        credential_dict[req_switch_ip]["status"] == "failed"):
-
+                        retrieved_user == switch_user and retrieved_password == switch_password and req_switch_ip in credential_dict and credential_dict[req_switch_ip]["status"] == "failed"):
                         time_since_last_attempt = time() - credential_dict[req_switch_ip]["timestamp"]
                         if time_since_last_attempt > 300:  # 300 seconds = 5 minutes
                             try:
@@ -292,6 +288,8 @@ def main():
                                 task_sts = json.loads(redis_server.get(taskFromQueueRecordID).decode())["status"]
                                 send_status_update(taskFromQueueRecordID, task_sts, output)
                                 update_credential_dict(req_switch_ip, retrieved_user, retrieved_password, "success")
+
+
 
                     else:
                         try:

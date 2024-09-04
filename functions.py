@@ -1,5 +1,5 @@
 import time, sys, threading; from unittest import result; import requests, json, re, os; import logging
-from datetime import datetime; 
+from datetime import datetime, timedelta; 
 import configparser,confparser; import paramiko; from ntc_templates.parse import parse_output
 from netmiko import ConnectHandler; import json; from dotenv import load_dotenv; from socket import *
 import glv; import redis
@@ -24,6 +24,7 @@ completed_tasks = glv.completed_tasks
 failed_tasks = glv.failed_tasks
 incomplete_tasks = glv.incomplete_tasks
 in_progress_tasks = glv.in_progress_tasks
+wait_queue = glv.wait_queue
 update_req_url = settings.url + "/SetCommandStatus"
 managment_logs_url = settings.url + "/postSwitchManagmentLogs"
 added_vlan = glv.added_vlan
@@ -210,7 +211,9 @@ def redis_set_list(taskCommandID="", taskStatus="", full_task="",output=""):
         logger.error('Error in redis_set: %s', str(err))
 
 
+
 def rabbitmq_push(TASK, QUEUE_NAME):
+
     try:
         rabbit_server.basic_publish(exchange="",
                                     routing_key=QUEUE_NAME,
@@ -221,6 +224,52 @@ def rabbitmq_push(TASK, QUEUE_NAME):
         print("***** Error While pushing task in queue Error_msg: ", err, " *****")
 
 
+
+
+def push_in_wait_queue(TASK, QUEUE_NAME, ATTEMPT):
+    task = {
+        "TASK": TASK,
+        "TIME": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "ATTEMPT": ATTEMPT
+    }
+    try:
+        rabbit_server.basic_publish(exchange="",
+                                    routing_key=QUEUE_NAME,
+                                    body=json.dumps(task),
+                                    properties=pika.BasicProperties(delivery_mode=2))
+        print("***** Task Successfully Pushed in Wait Queue *****")
+    except Exception as err:
+        print("***** Error While pushing task in wait queue. err-msg: ", err, " *****")
+
+
+def check_wait_queue():
+    attempt_count = 3
+    wait_time = 5
+    
+    method_frame, header_frame, body = rabbit_server.basic_get(queue=queue_name, auto_ack=True)
+    if method_frame:
+        task = body.decode()
+        current_time = datetime.now()
+        print(task["TIME"],  task["ATTEMPT"])
+        task_time = datetime.strptime(task["TIME"], "%Y-%m-%d %H:%M")       
+        time_difference = current_time - task_time
+        
+        if time_difference > timedelta(minutes=wait_time) and int(task["ATTEMPT"]) < attempt_count:
+            attempt = int(task["ATTEMPT"]) + 1
+            push_in_wait_queue(task, wait_queue, attempt)
+            return True
+        elif int(task["ATTEMPT"]) >= attempt_count:
+            # we dont need to remove queue to manually beacuae auto_ack is doing automaticly.
+            taskCommandID = task["command_number"]
+            redis_set(taskCommandID, "failed")
+            return False
+    
+    print("No queue found in wait queue")
+    return False
+            
+    
+    
+    
 
 
 # Function to update the credentials dictionary with the status
