@@ -66,9 +66,9 @@ def rabbitmq_queue_get(queue_name):
             return message
         else:
             return None    
-    except Exception as e:
-        logger.error('Error in rabbit_queue_get: %s', str(e))
-        send_logs_to_api(f'Error in rabbit_queue_get: {str(e)}', 'error', settings.mid_server)
+    except Exception as err:
+        logger.error('Error while getting rabbitmq queue: %s', str(err))
+        send_logs_to_api(f'Error while getting rabbitmq queue: {str(err)}', 'error', settings.mid_server)
         return None
     
 
