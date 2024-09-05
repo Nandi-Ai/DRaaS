@@ -167,6 +167,7 @@ def notify(task, status, msg =""):
 
 
 def get_task_status(task):
+    return
     task_command_id=task["command_number"]
     redisJobStatus = redis_server.get(task_command_id)
     return redisJobStatus
@@ -255,6 +256,7 @@ def rabbitmq_queue_get(queue_name):
         method_frame, header_frame, body = rabbit_server.basic_get(queue=queue_name, auto_ack=True)
 
         if method_frame:
+                       # i try this. to get dictionary from queue.  json.loads(body.decode()) 
             message = body.decode()
             print("Request from RabbitMQ:", message)
             logger.info('RabbitMQ queue get - Request: %s', message)
