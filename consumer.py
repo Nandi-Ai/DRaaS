@@ -138,11 +138,11 @@ def main():
 
         print(f'Queue length: {q_len}')
         if taskFromQueue is not None:
-                taskCommandID = taskFromQueue["command_number"]
                 send_logs.send_data_to_flask(0,'Getting data from queue...',   service_name)
                 taskFromQueuefixQuotes = re.sub("'", "\"", taskFromQueue)
                 taskFromQueueNoNone = re.sub("None", "\"\"", taskFromQueuefixQuotes)
                 json_req = json.loads(taskFromQueueNoNone)
+                taskCommandID = json_req["command_number"]
                 taskFromQueueRecordID = json_req["record_id"]
                 req_vlans = json_req["vlans"]
                 req_switch =   json_req["switch"]
@@ -160,7 +160,6 @@ def main():
                 priority = json_req["priority"]
                 api_status = get_id_status(taskFromQueueRecordID)
                 api_dr_status = api_status[0]['dr_status']
-                
                 print(f"api_status: {api_dr_status}")
                 if 'failed' in api_dr_status:
                     # update Redis with new status and push to failed queue if not exists
@@ -273,8 +272,6 @@ def main():
                                 task_sts = json.loads(redis_server.get(taskFromQueueRecordID).decode())["status"]
                                 send_status_update(taskFromQueueRecordID, task_sts, output)
                                 update_credential_dict(req_switch_ip, retrieved_user, retrieved_password, "success")
-
-
 
                     else:
                         try:

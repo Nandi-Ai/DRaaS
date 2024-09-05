@@ -163,11 +163,11 @@ def notify(task, status, msg =""):
     taskCommandID=task["command_number"]
     if status == "failed":
         send_status_update(recordID, "failed", msg)
-        send_logs.send_data_to_flask(0, f'msg {taskCommandID}',  "consumer")
+        send_logs.send_data_to_flask(0, f' {msg}  Task command id {taskCommandID}',  "consumer")
 
 
 def get_task_status(task):
-    return
+    task = json.loads(task)
     task_command_id=task["command_number"]
     redisJobStatus = redis_server.get(task_command_id)
     return redisJobStatus
