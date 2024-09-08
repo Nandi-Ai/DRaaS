@@ -180,19 +180,20 @@ def redis_set(taskCommandID, taskStatus):
 def redis_remove_list(fullTaskJson="", task_status="", output = ""):
         taskCommandID = fullTaskJson["command_number"]
         taskFromQueueRecordID = fullTaskJson["record_id"]
-        
+        print(f"redis_remove_list {taskCommandID} {taskFromQueueRecordID}")
+
         allTasksinList = redis_server.lrange("inprogress_list", 0, -1)
-        
         for task in allTasksinList:
             taskCommandIDL = task["command_number"]
             if taskCommandIDL == taskCommandID:
                 redis_server.lrem("inprogress_list", 10, task)
-                print(f"removed {taskCommandID} from list...")
+                print(f"removed {taskCommandID} from redis list")
                 if task_status == "in_progress":
                     rabbitmq_push(task, incomplete_tasks)
                     send_status_update(taskFromQueueRecordID, "incomplete", "taking too long to process")
                     send_logs.send_data_to_flask(0, f'task {taskCommandID} is stuck. pushing to incomplete_tasks',  "consumer")
                 if task_status == "failed":
+                    print("found failed removing")
                     # notify(taskCommandIDL, "failed", "task is failed")
                     send_status_update(taskFromQueueRecordID, "failed", output)
                     send_logs.send_data_to_flask(0, f'task {taskCommandID} failed',  "consumer")
@@ -207,7 +208,7 @@ def task_set_status_and_queue(fullTaskJson, taskStatus="", output=""):
     taskFromQueueRecordID = fullTaskJson["record_id"]
     try:
         if taskStatus == "failed":
-            # send_status_update(taskFromQueueRecordID, taskStatus, output)
+            send_status_update(taskFromQueueRecordID, taskStatus, output)
             redis_set(taskCommandID, taskStatus)
             redis_remove_list(taskCommandID, taskStatus, output)
             send_logs.send_data_to_flask(0, output,  "consumer")
