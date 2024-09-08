@@ -95,6 +95,7 @@ def get_id_status(ID):
 
 # Main function
 def main():
+    rabbit_server.queue_declare(queue=wait_queue, durable=True)
 
     while True:
 
