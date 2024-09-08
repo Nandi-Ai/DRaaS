@@ -63,7 +63,7 @@ def get_rabbit_queues_status():
             print("Members:")
             if queue_name == "fixme":
                 tasks = []
-                for jobs in members:
+                for jobs in queueuHandler:
                     task_data = jobs.decode('utf-8')
                     task = json.loads(task_data)
                     tasks.append(task)
@@ -120,8 +120,8 @@ def generate_raw_queue_status() -> json:
     for queue_name in queueConst:
         overall_status[queue_name] = get_raw_queue_data(queue_name)
         
-    queue_status = get_rabbit_queues_status()
-    overall_status.update(queue_status)
+    # queue_status = get_rabbit_queues_status()
+    # overall_status.update(queue_status)
     print(overall_status)
     return overall_status
 
