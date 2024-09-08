@@ -181,7 +181,7 @@ def main():
 
         #### PUSH TO RABBIT "in_progress_tasks"
         # pushing in_progress task in rabbitmq queue 
-        task_set_status_and_queue(json_req, "in_progress", taskFromQueue)
+        task_set_status_and_queue(json_req, "in_progress")
         print(f"taskCommandID: {taskCommandID} is push and set in progress")
         send_logs.send_data_to_flask(0, f"Request {taskCommandID} in progress ",  service_name)
         # redis_server.set(name="current_task_queue", value=json.dumps({"id": taskCommandID, "switch_ip": req_switch_ip, "command": req_cmd}))
@@ -251,7 +251,7 @@ def main():
                             except Exception as error:
                                 output = f"{error}"
                                 send_logs.send_data_to_flask(1, f'Exception, taskFromQueueRecordID: {taskFromQueueRecordID}, Error: {error}',  service_name)
-                                task_set_status_and_queue(json_req, "failed") 
+                                task_set_status_and_queue(json_req, "failed",output) 
                                 send_status_update(taskFromQueueRecordID, "failed", error)
 
                                 # Update the credentials with a "failed" status if not already present
@@ -297,7 +297,7 @@ def main():
                                 output = "operation is done."
                         except Exception as error:
                             output = f"{error}"
-                            task_set_status_and_queue(json_req, "failed", taskFromQueue,output)
+                            task_set_status_and_queue(json_req, "failed",output)
                             # send_logs.send_data_to_flask(1, f'id: {taskFromQueueRecordID} failed, {error}',  service_name)
                             
                             # Update the credentials with a "failed" status if not already present
