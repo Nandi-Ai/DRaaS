@@ -3,9 +3,13 @@ from datetime import datetime
 import time
 import glv
 import pika
+from rabbitmq import *
+
 
 url = "http://localhost:5050/receive"
 headers = {'Content-Type': 'application/json'}
+rabbit_server = rabbit_connection()
+
 
 try:
     # connecting to redis
@@ -47,7 +51,38 @@ def get_raw_queue_data(queue_name: str) -> dict:
         "jobs": jobs
     }
     
+def get_rabbit_queues_status():
+    queueNames = [ glv.current_task_queue, glv.failed_tasks, glv.in_progress_tasks]
+    rqueue_tasks = {} 
+    for queue_name in queueNames:  
+        try:
+            queueuHandler = rabbit_server.queue_declare(queue=queue_name, durable=True)
+            queueLength = queueuHandler.method.message_count  
+
+            print(f"Queue '{queue_name}' has {queueLength} items.")
+            print("Members:")
+            if queue_name == "fixme":
+                tasks = []
+                for jobs in members:
+                    task_data = jobs.decode('utf-8')
+                    task = json.loads(task_data)
+                    tasks.append(task)
+                rqueue_tasks[queue_name] = {
+                    "queue_name": queue_name,
+                    "queue_length": queueLength,
+                    "jobs": tasks
+                }
+            else:
+                rqueue_tasks[queue_name] = {
+                        "queue_name": queue_name,
+                        "queue_length": queueLength,
+                        "jobs": []
+                    }
+        except redis.exceptions.RedisError as e:
+            print(f"An error occurred with queue '{queue_name}': {e}")
     
+    return rqueue_tasks
+
 def get_redis_jobs():
     queue_names = [ glv.current_task_queue, glv.failed_tasks, glv.in_progress_tasks]
     redis_tasks = {} 
@@ -80,13 +115,13 @@ def get_redis_jobs():
     return redis_tasks
         
 def generate_raw_queue_status() -> json:
-    rq = [ glv.api_queue_name, glv.completed_tasks]
+    queueConst = [ glv.api_queue_name, glv.completed_tasks]
     overall_status = {}
-    for queue_name in rq:
+    for queue_name in queueConst:
         overall_status[queue_name] = get_raw_queue_data(queue_name)
         
-    redis_jobs = get_redis_jobs()
-    overall_status.update(redis_jobs)
+    queue_status = get_rabbit_queues_status()
+    overall_status.update(queue_status)
     print(overall_status)
     return overall_status
 
