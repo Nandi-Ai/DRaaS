@@ -203,7 +203,8 @@ def task_set_status_and_queue(taskCommandID="", taskStatus="", full_task="",outp
     try:
         if taskStatus == "failed":
             redis_set(taskCommandID, taskStatus)
-            redis_remove_list(taskCommandID, taskStatus,output)
+            redis_remove_list(taskCommandID, taskStatus, output)
+            send_logs.send_data_to_flask(0, output,  "consumer")
         elif taskStatus == "in_progress":
             redis_server.lpush(in_progress_tasks, full_task)
             rabbitmq_push(full_task, in_progress_tasks)
@@ -299,13 +300,13 @@ def update_credential_dict(ip, username, password, status):
     credential_dict[ip] = {"timestamp": timestamp, "status": status, "user": username, "pass": password}
 
 # Function to send a status or update to ServiceNow API
-def send_status_update(ID, STATUS, OUTPUT):
+def send_status_update(command_id, STATUS, OUTPUT):
     status = STATUS.lower()
-    print(f"{ID}, STATUS: {status}, OUTPUT: {OUTPUT}")
-    payload = json.dumps({"command_id": f"{ID}", "command_status": f"{status}", "command_output": f"{OUTPUT}"})
+    print(f"{command_id}, STATUS: {status}, OUTPUT: {OUTPUT}")
+    payload = json.dumps({"command_id": f"{command_id}", "command_status": f"{status}", "command_output": f"{OUTPUT}"})
     response = requests.post(update_req_url, data=payload, headers={'Content-Type': 'application/json'},
                            auth=(settings.username, settings.password))
-    valid_response_code(response.status_code, ID)
+    valid_response_code(response.status_code, command_id)
 
 # Initialize the message counter
 message_counter = 0
