@@ -164,7 +164,7 @@ def main():
                 print(f"api_status: {api_dr_status}")
                 if 'failed' in api_dr_status:
                     # update Redis with new status and push to failed queue if not exists
-                    task_set_status_and_queue(taskCommandID, "failed")
+                    task_set_status_and_queue(json_req, "failed")
                     # redis_server.set(taskCommandID, "failed")
                     continue
 
@@ -181,7 +181,7 @@ def main():
 
         #### PUSH TO RABBIT "in_progress_tasks"
         # pushing in_progress task in rabbitmq queue 
-        task_set_status_and_queue(taskCommandID, "in_progress", taskFromQueue)
+        task_set_status_and_queue(json_req, "in_progress", taskFromQueue)
         print(f"taskCommandID: {taskCommandID} is push and set in progress")
         send_logs.send_data_to_flask(0, f"Request {taskCommandID} in progress ",  service_name)
         # redis_server.set(name="current_task_queue", value=json.dumps({"id": taskCommandID, "switch_ip": req_switch_ip, "command": req_cmd}))
@@ -216,7 +216,7 @@ def main():
                 if not sshConnectStatus:
                     # If failed to connect after MAX attempts, send a status update to ServiceNow
                     error_message = f"Failed to establish SSH connection to {req_switch_ip} after {SSHClient.MAX_RETRIES} attempts."
-                    task_set_status_and_queue(taskCommandID, "failed", error_message)
+                    task_set_status_and_queue(json_req, "failed", error_message)
                     continue
                 send_logs.send_data_to_flask(0, f'closing ssh connection to {req_switch_ip}',  service_name)
                 ssh_client.close_connection()
@@ -251,7 +251,7 @@ def main():
                             except Exception as error:
                                 output = f"{error}"
                                 send_logs.send_data_to_flask(1, f'Exception, taskFromQueueRecordID: {taskFromQueueRecordID}, Error: {error}',  service_name)
-                                task_set_status_and_queue(taskCommandID, "failed") 
+                                task_set_status_and_queue(json_req, "failed") 
                                 send_status_update(taskFromQueueRecordID, "failed", error)
 
                                 # Update the credentials with a "failed" status if not already present
@@ -297,7 +297,7 @@ def main():
                                 output = "operation is done."
                         except Exception as error:
                             output = f"{error}"
-                            task_set_status_and_queue(taskCommandID, "failed", taskFromQueue,output)
+                            task_set_status_and_queue(json_req, "failed", taskFromQueue,output)
                             # send_logs.send_data_to_flask(1, f'id: {taskFromQueueRecordID} failed, {error}',  service_name)
                             
                             # Update the credentials with a "failed" status if not already present

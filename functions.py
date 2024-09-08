@@ -177,7 +177,10 @@ def redis_set(taskCommandID, taskStatus):
     redis_server.set(taskCommandID,taskStatus)
 
 
-def redis_remove_list(taskCommandID="", task_status="", output = ""):
+def redis_remove_list(fullTaskJson="", task_status="", output = ""):
+        taskCommandID = fullTaskJson["command_number"]
+        taskFromQueueRecordID = fullTaskJson["record_id"]
+        
         allTasksinList = redis_server.lrange("inprogress_list", 0, -1)
         
         for task in allTasksinList:
@@ -187,11 +190,11 @@ def redis_remove_list(taskCommandID="", task_status="", output = ""):
                 print(f"removed {taskCommandID} from list...")
                 if task_status == "in_progress":
                     rabbitmq_push(task, incomplete_tasks)
-                    send_status_update(taskCommandID, "incomplete", "taking too long to process")
+                    send_status_update(taskFromQueueRecordID, "incomplete", "taking too long to process")
                     send_logs.send_data_to_flask(0, f'task {taskCommandID} is stuck. pushing to incomplete_tasks',  "consumer")
                 if task_status == "failed":
                     # notify(taskCommandIDL, "failed", "task is failed")
-                    send_status_update(taskCommandIDL, "failed", output)
+                    send_status_update(taskFromQueueRecordID, "failed", output)
                     send_logs.send_data_to_flask(0, f'task {taskCommandID} failed',  "consumer")
 
                 return True
@@ -199,9 +202,12 @@ def redis_remove_list(taskCommandID="", task_status="", output = ""):
         print(f"didnt find {taskCommandID} in list")
         return False
 
-def task_set_status_and_queue(taskCommandID="", taskStatus="", full_task="",output=""):
+def task_set_status_and_queue(fullTaskJson, taskStatus="", full_task="",output=""):
+    taskCommandID = fullTaskJson["command_number"]
+    taskFromQueueRecordID = fullTaskJson["record_id"]
     try:
         if taskStatus == "failed":
+            send_status_update(taskFromQueueRecordID, taskStatus, output)
             redis_set(taskCommandID, taskStatus)
             redis_remove_list(taskCommandID, taskStatus, output)
             send_logs.send_data_to_flask(0, output,  "consumer")
