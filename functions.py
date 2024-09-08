@@ -216,7 +216,7 @@ def redis_set_list(taskCommandID="", taskStatus="", full_task="",output=""):
         send_logs_to_api(f'Redis set - Key: {taskCommandID}, Value: {taskStatus}', 'info', settings.mid_server)
         
     except Exception as err:
-        send_logs_to_api(f'Error in updating API', 'error', settings.mid_server, datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), '123')
+        send_logs_to_api(f'Error in updating API', 'error', settings.mid_server)
         logger.error('Error in redis_set: %s', str(err))
 
 
