@@ -350,7 +350,7 @@ def send_successORfailed_status(req_id, status_message=None, output_message=None
             output = f"{output_message}\n{output}"
         else:
             output = f"{output}"
-        redis_set(req_id, "completed", output)
+        redis_set(req_id, "completed")
         task_status = json.loads(redis_server.get(req_id).decode())["status"]
         send_status_update(req_id, task_status, output)
         update_credential_dict(req_switch_ip, retrieved_user, retrieved_password, "success")
@@ -364,7 +364,7 @@ def send_successORfailed_status(req_id, status_message=None, output_message=None
 
 def send_gaia_status(req_id, status_message=None, output=None, error=None, req_cmd=None, destination=None, gateway=None, req_vlans=None,req_interface_name=None):
     if status_message == "status: success":
-        redis_set(req_id, "completed", output)
+        redis_set(req_id, "completed")
         task_status = json.loads(redis_server.get(req_id).decode())["status"]
         send_status_update(req_id, task_status, output)
 
@@ -379,7 +379,7 @@ def send_gaia_status(req_id, status_message=None, output=None, error=None, req_c
             output = f"{status_message} Error removing VLANs {str(req_vlans)} from interface {req_interface_name}: {error}"
         else:
             output = f"{status_message} Error: {error}"
-        redis_set(req_id, "failed", output)
+        redis_set(req_id, "failed")
         send_status_update(req_id, "failed", output)
 
 def check_privileged_connection(connection):

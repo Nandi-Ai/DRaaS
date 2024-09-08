@@ -420,7 +420,7 @@ def main():
                                             req_cmd=req_cmd, destination=destination, gateway=gateway, req_vlans=req_vlans,req_interface_name=req_interface_name)
         else:
             print(f"No matching switch found for IP: {req_switch_ip}")
-            redis_set(taskCommandID, "failed", EX=1200)
+            redis_set(taskCommandID, "failed")
             send_status_update(json_req, "failed", "Could not find switch for IP")
 
         sleep(10)
