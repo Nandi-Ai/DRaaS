@@ -338,7 +338,7 @@ def main():
                             elif action == "removed":
                                 output = f'Cannot delete the VLAN because: {cmd_output}'
                             send_logs.send_data_to_flask(0, 'Calling function (send_gaia_status)...',  service_name)
-                            send_gaia_status(taskFromQueueRecordID, status_message="status: failed", output=output, error=output,
+                            send_gaia_status(json_req, status_message="status: failed", output=output, error=output,
                                             req_cmd=req_cmd, destination=destination, gateway=gateway, req_vlans=req_vlans,req_interface_name=req_interface_name)
                         else:
                             send_logs.send_data_to_flask(0, 'Calling function (get_gaia_interface_info)...',  service_name)
@@ -352,7 +352,7 @@ def main():
                             output_message = f"VLANs {req_vlans} {action} to interface {req_interface_name} on Gaia switch {req_switch_ip}."
                             output = f"{output_message}\n{json_data}"
                             send_logs.send_data_to_flask(0, 'Calling function (send_gaia_status)...',  service_name)
-                            send_gaia_status(taskFromQueueRecordID, status_message="status: success", output=output, error=None,
+                            send_gaia_status(json_req, status_message="status: success", output=output, error=None,
                                             req_cmd=None, destination=None, gateway=None, req_vlans=None,req_interface_name=None)
 
                     ##routing add/remove
@@ -413,11 +413,11 @@ def main():
                         json_data = json.dumps(combined_data, indent=4)
                         output = json_data
 
-                        send_gaia_status(taskFromQueueRecordID, status_message="status: success", output=output, error=None,
+                        send_gaia_status(json_req, status_message="status: success", output=output, error=None,
                                             req_cmd=None, destination=None, gateway=None, req_vlans=None,req_interface_name=None)
 
                 except Exception as error:
-                    send_gaia_status(taskFromQueueRecordID, status_message="status: failed", output=None, error=error,
+                    send_gaia_status(json_req, status_message="status: failed", output=None, error=error,
                                             req_cmd=req_cmd, destination=destination, gateway=gateway, req_vlans=req_vlans,req_interface_name=req_interface_name)
         else:
             print(f"No matching switch found for IP: {req_switch_ip}")
