@@ -53,14 +53,15 @@ class SSHClient:
         # from consumer import send_status_update
         attempts = 0
         while attempts < self.MAX_RETRIES:
+            attempts += 1
             try:
                 self.connection = ConnectHandler(**self.connection_params)
                 return True
             except Exception as e:
-                print(f"Failed to connect. Attempt {attempts+1}/{self.MAX_RETRIES}. Error: {e}")
+                print(f"Failed to connect. Attempt {attempts}/{self.MAX_RETRIES}. Error: {e}")
                 send_status_update(req_id, "Active", f"Attempt {attempts+1}/{self.MAX_RETRIES} failed.")
-                sleep(10)  # Wait for 10 seconds before retrying
-                attempts += 1
+                if (attempts < self.MAX_RETRIES):
+                    sleep(10)  # Wait for 10 seconds before retrying
         return False
 
     def close_connection(self):
