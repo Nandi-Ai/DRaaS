@@ -222,11 +222,11 @@ def task_set_status_and_queue(fullTaskJson, taskStatus="", output=""):
             redis_server.set(taskCommandID, taskStatus, ex=600) # 10 minute
             print(f"***** taskCommandID: {taskCommandID} is set and push redis in_progress queue: *****")
         else:
-            redis_server.set(taskCommandID, taskStatus)
-            print(f"***** taskCommandID: {taskCommandID} is set in {taskStatus}  *****")
+            print(f"trying to set redis taskCommandID: {taskCommandID} to {taskStatus}")
+            redis_set(taskCommandID, taskStatus)
             
         logger.info('Redis set - Key: %s, Value: %s', taskCommandID, taskStatus)
-        send_logs_to_api(f'Redis set - Key: {taskCommandID}, Value: {taskStatus}', 'info', settings.mid_server)
+        send_logs_to_api(f'Redis set - Key: {taskCommandID} Value: {taskStatus}', 'info', settings.mid_server)
         
     except Exception as err:
         send_logs_to_api(f'Error in updating API', 'error', settings.mid_server)
