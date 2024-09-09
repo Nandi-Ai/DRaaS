@@ -370,7 +370,8 @@ def send_successORfailed_status(req_id, status_message=None, output_message=None
 def send_gaia_status(req_id, status_message=None, output=None, error=None, req_cmd=None, destination=None, gateway=None, req_vlans=None,req_interface_name=None):
     if status_message == "status: success":
         redis_set(req_id, "completed")
-        task_status = json.loads(redis_server.get(req_id).decode())["status"]
+        task_status = json.loads(redis_server.get(req_id))["status"]
+        print(f"send_gaia_status: {task_status}")
         send_status_update(req_id, task_status, output)
 
     elif status_message == "status: failed":
