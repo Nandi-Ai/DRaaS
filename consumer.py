@@ -62,6 +62,7 @@ def get_credentials(ip):
 # Function to send a status or update to ServiceNow API
 def get_id_status(ID):
     payload = json.dumps({"command_id": f"{ID}"})
+    print(f"get_id_status {payload}")
     commands = requests.post(get_id_url, data=payload, headers={'Content-Type': 'application/json'},
                            auth=(settings.username, settings.password))
     valid_response_code(commands.status_code, ID)

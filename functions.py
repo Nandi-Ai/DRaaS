@@ -210,11 +210,13 @@ def task_set_status_and_queue(fullTaskJson, taskStatus="", output=""):
     print(f"inside task_set_status_and_queue taskCommandID: {taskCommandID} taskStatus: {taskStatus} " )
     try:
         if taskStatus == "failed":
+            print("task: failed")
             send_status_update(taskFromQueueRecordID, taskStatus, output)
             redis_set(taskCommandID, taskStatus)
             redis_remove_list(taskCommandID, taskStatus, output)
             send_logs.send_data_to_flask(0, output,  "consumer")
         elif taskStatus == "in_progress":
+            print("task: in_progress")
             redis_server.lpush(in_progress_tasks, fullTaskJson)
             rabbitmq_push(fullTaskJson, in_progress_tasks)
             redis_server.set(taskCommandID, taskStatus, ex=600) # 10 minute
