@@ -367,12 +367,13 @@ def send_successORfailed_status(req_id, status_message=None, output_message=None
         if req_switch_ip not in credential_dict or credential_dict[req_switch_ip]["status"] != "failed":
             update_credential_dict(req_switch_ip, retrieved_user, retrieved_password, "failed")    
 
-def send_gaia_status(req_id, status_message=None, output=None, error=None, req_cmd=None, destination=None, gateway=None, req_vlans=None,req_interface_name=None):
+def send_gaia_status(fullTaskJson, status_message=None, output=None, error=None, req_cmd=None, destination=None, gateway=None, req_vlans=None,req_interface_name=None):
+    taskCommandID = fullTaskJson["command_number"]
     if status_message == "status: success":
-        redis_set(req_id, "completed")
-        task_status = json.loads(redis_server.get(req_id))["status"]
+        redis_set(taskCommandID, "completed")
+        task_status = get_task_status(fullTaskJson)
         print(f"send_gaia_status: {task_status}")
-        send_status_update(req_id, task_status, output)
+        send_status_update(taskCommandID, task_status, output)
 
     elif status_message == "status: failed":
         if req_cmd.lower() == "add route":
@@ -385,8 +386,8 @@ def send_gaia_status(req_id, status_message=None, output=None, error=None, req_c
             output = f"{status_message} Error removing VLANs {str(req_vlans)} from interface {req_interface_name}: {error}"
         else:
             output = f"{status_message} Error: {error}"
-        redis_set(req_id, "failed")
-        send_status_update(req_id, "failed", output)
+        redis_remove_list(fullTaskJson, "failed", output)
+        send_status_update(fullTaskJson, "failed", output)
 
 def check_privileged_connection(connection):
     """
