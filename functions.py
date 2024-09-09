@@ -199,6 +199,11 @@ def redis_remove_list(fullTaskJson="", task_status="", output = ""):
                     # notify(taskCommandIDL, "failed", "task is failed")
                     send_status_update(taskFromQueueRecordID, "failed", output)
                     send_logs.send_data_to_flask(0, f'task {taskCommandID} failed',  "consumer")
+                if task_status == "completed":
+                    print("task completed ")
+                    # notify(taskCommandIDL, "failed", "task is failed")
+                    send_status_update(taskFromQueueRecordID, "completed", output)
+                    send_logs.send_data_to_flask(0, f'task {taskCommandID} completed',  "consumer")
 
                 return True
             
@@ -372,12 +377,15 @@ def send_gaia_status(fullTaskJson, status_message=None, output=None, error=None,
     print(f"send_gaia_status taskCommandID:{taskCommandID} status_message {status_message}")
     if status_message == "status: success":
         redis_set(taskCommandID, "completed")
-        task_status = get_task_status(fullTaskJson)
+        task_status = "completed"
         print(f"send_gaia_status: {task_status}")
-        send_status_update(taskCommandID, task_status, output)
+        redis_remove_list(fullTaskJson, "completed", output)
+        # send_status_update(taskCommandID, task_status, output)
 
     elif status_message == "status: failed":
-        if req_cmd.lower() == "add route":
+        if not req_cmd:
+            output = f"{status_message} Could not find route for {destination} and gateway {gateway if gateway else 'None'}: {error}"
+        elif req_cmd.lower() == "add route":
             output = f"{status_message} Error adding route for {destination} and gateway {gateway if gateway else 'None'}: {error}"
         elif req_cmd.lower() == "delete route":
             output = f"{status_message} Error removing route for {destination} and gateway {gateway if gateway else 'None'}: {error}"
