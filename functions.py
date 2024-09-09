@@ -174,6 +174,7 @@ def get_task_status(task):
 
 
 def redis_set(taskCommandID, taskStatus):
+    print(f"redis_set taskCommandID: {taskCommandID} taskStatus: {taskStatus}")
     redis_server.set(taskCommandID,taskStatus)
 
 
@@ -206,6 +207,7 @@ def redis_remove_list(fullTaskJson="", task_status="", output = ""):
 def task_set_status_and_queue(fullTaskJson, taskStatus="", output=""):
     taskCommandID = fullTaskJson["command_number"]
     taskFromQueueRecordID = fullTaskJson["record_id"]
+    print(f"inside task_set_status_and_queue taskCommandID: {taskCommandID} taskStatus: {taskStatus} " )
     try:
         if taskStatus == "failed":
             send_status_update(taskFromQueueRecordID, taskStatus, output)

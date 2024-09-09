@@ -153,7 +153,7 @@ def queue_push(task):
                 if api_task_command_number not in [json.loads(t)["record_id"] for t in redis_server.lrange(failed_tasks,0,-1)]:
                     send_logs.send_data_to_flask(0, f'failed job... ',  service_name)                                                                
                     ## TODO Fix this part
-                    redis_set(failed_tasks, task)
+                    ## redis_set(failed_tasks, task)
 
             else:
                 print("Job exists on redis, quitting")
