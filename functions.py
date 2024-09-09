@@ -333,7 +333,7 @@ def send_logs_to_api(message, severity, source):
             "source": source,
             "timestamp": timestamp,
             "message_id": message_id})
-        print(payload)
+        print(f"send_logs_to_api: {payload}")
         answer = requests.post(managment_logs_url, data=payload,
                                headers={'Content-Type': 'application/json'}, auth=(settings.username, settings.password)).json()
     except Exception as e:
