@@ -318,13 +318,13 @@ def update_credential_dict(ip, username, password, status):
     credential_dict[ip] = {"timestamp": timestamp, "status": status, "user": username, "pass": password}
 
 # Function to send a status or update to ServiceNow API
-def send_status_update(command_id, STATUS, OUTPUT):
+def send_status_update(taskRecordID, STATUS, OUTPUT):
     status = STATUS.lower()
-    print(f"send_status_update{command_id}, STATUS: {status}, OUTPUT: {OUTPUT}")
-    payload = json.dumps({"command_id": f"{command_id}", "command_status": f"{status}", "command_output": f"{OUTPUT}"})
+    print(f"send_status_update {taskRecordID}, STATUS: {status}, OUTPUT: {OUTPUT}")
+    payload = json.dumps({"command_id": f"{taskRecordID}", "command_status": f"{status}", "command_output": f"{OUTPUT}"})
     response = requests.post(update_req_url, data=payload, headers={'Content-Type': 'application/json'},
                            auth=(settings.username, settings.password))
-    valid_response_code(response.status_code, command_id)
+    valid_response_code(response.status_code, taskRecordID)
 
 # Initialize the message counter
 message_counter = 0
@@ -382,7 +382,7 @@ def send_gaia_status(fullTaskJson, status_message=None, output=None, error=None,
         task_status = "completed"
         print(f"send_gaia_status: {task_status}")
         redis_remove_list(fullTaskJson, "completed", output)
-        send_status_update(taskCommandID, "completed", output)
+        send_status_update(taskRecordID, "completed", output)
 
         # send_status_update(taskCommandID, task_status, output)
 
