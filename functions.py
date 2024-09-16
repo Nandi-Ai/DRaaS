@@ -333,7 +333,7 @@ def send_status_update(taskRecordID, STATUS, OUTPUT):
     for i in range(3):
         try:
             response = requests.post(update_req_url, data=payload, headers={'Content-Type': 'application/json'},
-                           auth=(settings.username, settings.password), timeout=5)
+                           auth=(settings.username, settings.password), timeout=3)
             break
         except requests.Timeout:
             print ("Timeout connecting to api")
