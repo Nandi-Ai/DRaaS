@@ -4,19 +4,23 @@ import time
 import glv
 import pika
 from rabbitmq import *
+import settings; from settings import *; settings.init()
 
 
 url = "http://localhost:5050/receive"
 headers = {'Content-Type': 'application/json'}
 rabbit_server = rabbit_connection()
+rabbitmq_ip = settings.rabbitmq_ip 
 
+redis_ip = settings.redis_ip
+redis_port = settings.redis_port
 
 try:
     # connecting to redis
-    redis_conn = redis.Redis()
+    redis_server = redis.Redis(host=redis_ip, port=redis_port, db=0)
     
     # connecting to rabbitmq
-    rabbit_conn = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
+    rabbit_conn = pika.BlockingConnection(pika.ConnectionParameters(host=rabbitmq_ip))
     rabbit_channel = rabbit_conn.channel()
 except Exception as err:
     print("Error while connecting to redis:", err)
@@ -33,7 +37,7 @@ def get_raw_queue_data(queue_name: str) -> dict:
         job_data = json.loads(body.decode('utf-8'))
         raw_data.append(job_data)
 
-    connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
+    connection = pika.BlockingConnection(pika.ConnectionParameters(rabbitmq_ip))
     rabbit_channel = connection.channel()
     rabbit_channel.queue_declare(queue=queue_name, durable=True)
     try:

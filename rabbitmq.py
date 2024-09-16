@@ -1,10 +1,17 @@
 import pika
+import settings; from settings import *; settings.init()
+
+rabbitmq_ip = settings.rabbitmq_ip 
+rabbitmq_port = settings.rabbitmq_port
+rabbitmq_username = settings.rabbitmq_username
+rabbitmq_password = settings.rabbitmq_password
+
 #rabbit connection
 def rabbit_connection():
-    server = "localhost" # config["server"]
-    port = "5672" # config["port"]
-    user = "guest" # config["user"]
-    password = "guest" # config["password"]
+    server = rabbitmq_ip
+    port = rabbitmq_port
+    user = rabbitmq_username
+    password = rabbitmq_password
     
     credentials = pika.PlainCredentials(user, password)
     connection = pika.BlockingConnection(

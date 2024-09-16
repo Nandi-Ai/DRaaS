@@ -15,7 +15,7 @@ logging.getLogger('pika').setLevel(logging.CRITICAL)
 settings.init()
 
 # Create a Redis server connections.
-redis_server = redis.Redis()
+
 from_api_queue = glv.api_queue_name
 in_progress_tasks = glv.in_progress_tasks
 completed_tasks = glv.completed_tasks
@@ -26,6 +26,10 @@ get_cmds_url = settings.url + "/getCommands"
 update_req_url = settings.url + "/SetCommandStatus"
 get_id_url = settings.url + "/getCommandByID"
 Managment_Logs = settings.url + "/postSwitchManagmentLogs"
+
+redis_ip = settings.redis_ip
+redis_ip = settings.redis_port
+redis_server = redis.Redis(host=redis_ip, port=redis_port, db=0)
 
 
 service_name = 'consumer'

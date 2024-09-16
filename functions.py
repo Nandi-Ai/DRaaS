@@ -17,9 +17,9 @@ config.sections()
 config.read('../config/parameters.ini')
 # config.read('./config/parameters.ini')
 
+
 logger = logging.getLogger(__name__)
-redis_server = redis.Redis(host='localhost', port=6379, db=0)
-redis_server = redis.StrictRedis(charset="utf=8", decode_responses=True)
+
 queue_name = glv.api_queue_name
 completed_tasks = glv.completed_tasks
 failed_tasks = glv.failed_tasks
@@ -31,6 +31,13 @@ managment_logs_url = settings.url + "/postSwitchManagmentLogs"
 added_vlan = glv.added_vlan
 credential_dict = glv.credential_dict
 max_attempts = 3
+
+redis_ip = settings.redis_ip
+redis_ip = settings.redis_port
+
+
+redis_server = redis.Redis(host=redis_ip, port=redis_port, db=0)
+redis_server = redis.StrictRedis(charset="utf=8", decode_responses=True)
 
 #SSH connection function
 class SSHClient:
