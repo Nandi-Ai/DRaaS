@@ -291,7 +291,7 @@ def rabbitmq_queue_get(queue_name):
         return None
 
 def check_wait_queue():
-    current_time = round(time())
+    current_time = round(time.time())
 
     task = rabbitmq_queue_get(wait_queue)
     if task:
@@ -315,7 +315,7 @@ def check_wait_queue():
 
 # Function to update the credentials dictionary with the status
 def update_credential_dict(ip, username, password, status):
-    timestamp = time()
+    timestamp = time.time()
     credential_dict[ip] = {"timestamp": timestamp, "status": status, "user": username, "pass": password}
 
 # Function to send a status or update to ServiceNow API
