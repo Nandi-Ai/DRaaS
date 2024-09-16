@@ -374,12 +374,15 @@ def send_successORfailed_status(req_id, status_message=None, output_message=None
 
 def send_gaia_status(fullTaskJson, status_message=None, output=None, error=None, req_cmd=None, destination=None, gateway=None, req_vlans=None,req_interface_name=None):
     taskCommandID = fullTaskJson["command_number"]
+    taskFromQueueRecordID = fullTaskJson["record_id"]
     print(f"send_gaia_status taskCommandID:{taskCommandID} status_message {status_message}")
     if status_message == "status: success":
         redis_set(taskCommandID, "completed")
         task_status = "completed"
         print(f"send_gaia_status: {task_status}")
         redis_remove_list(fullTaskJson, "completed", output)
+        send_status_update(taskFromQueueRecordID, "completed", output)
+
         # send_status_update(taskCommandID, task_status, output)
 
     elif status_message == "status: failed":
