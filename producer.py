@@ -117,8 +117,8 @@ def queue_push(task):
             send_logs.send_data_to_flask(0, f'recived task {task}', service_name) 
             #Active task
 
-            redis_server.set(api_task_command_number, drStatus)
             if "active" in drStatus:   
+                redis_server.set(api_task_command_number, drStatus)
                 if redisJobStatus is None:
                     
                     print("Aha! Found new active status")                    

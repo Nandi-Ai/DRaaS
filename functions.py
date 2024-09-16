@@ -1,10 +1,11 @@
-import time, sys, threading; from unittest import result; import requests, json, re, os; import logging
+import time, sys, threading 
+from unittest import result; import requests, json, re, os; import logging
 from datetime import datetime, timedelta; 
 import configparser,confparser; import paramiko; from ntc_templates.parse import parse_output
 from netmiko import ConnectHandler; import json; from dotenv import load_dotenv; from socket import *
 import glv; import redis
 load_dotenv()
-from time import sleep, time
+from time import sleep
 import settings; from settings import *; settings.init()
 import send_logs
 from rabbitmq import *
@@ -66,7 +67,7 @@ class SSHClient:
                 return True
             except Exception as e:
                 print(f"Failed to connect. Attempt {attempts}/{self.MAX_RETRIES}. Error: {e}")
-                send_status_update(req_id, "Active", f"Attempt {attempts+1}/{self.MAX_RETRIES} failed.")
+                send_status_update(req_id, "Active", f"Attempt {attempts}/{self.MAX_RETRIES} failed.")
                 if (attempts < self.MAX_RETRIES):
                     sleep(10)  # Wait for 10 seconds before retrying
         return False
@@ -206,6 +207,11 @@ def redis_remove_list(fullTaskJson="", task_status="", output = ""):
                     # notify(taskCommandIDL, "failed", "task is failed")
                     send_status_update(taskFromQueueRecordID, "failed", output)
                     send_logs.send_data_to_flask(0, f'task {taskCommandID} failed',  "consumer")
+                if task_status == "completed":
+                    print("task completed ")
+                    # notify(taskCommandIDL, "failed", "task is failed")
+                    send_status_update(taskFromQueueRecordID, "completed", output)
+                    send_logs.send_data_to_flask(0, f'task {taskCommandID} completed',  "consumer")
 
                 return True
             
@@ -228,6 +234,7 @@ def task_set_status_and_queue(fullTaskJson, taskStatus="", output=""):
             redis_server.lpush(in_progress_tasks, json.dumps(fullTaskJson))
             rabbitmq_push(fullTaskJson, in_progress_tasks)
             redis_server.set(taskCommandID, taskStatus, ex=600) # 10 minute
+            send_status_update(taskFromQueueRecordID, "in_progress", output)
             print(f"***** taskCommandID: {taskCommandID} is set {taskStatus} and pushed redis in_progress queue: *****")
         else:
             print(f"trying to set redis taskCommandID: {taskCommandID} to {taskStatus}")
@@ -291,7 +298,7 @@ def rabbitmq_queue_get(queue_name):
         return None
 
 def check_wait_queue():
-    current_time = round(time())
+    current_time = round(time.time())
 
     task = rabbitmq_queue_get(wait_queue)
     if task:
@@ -315,17 +322,17 @@ def check_wait_queue():
 
 # Function to update the credentials dictionary with the status
 def update_credential_dict(ip, username, password, status):
-    timestamp = time()
+    timestamp = time.time()
     credential_dict[ip] = {"timestamp": timestamp, "status": status, "user": username, "pass": password}
 
 # Function to send a status or update to ServiceNow API
-def send_status_update(command_id, STATUS, OUTPUT):
+def send_status_update(taskRecordID, STATUS, OUTPUT):
     status = STATUS.lower()
-    print(f"{command_id}, STATUS: {status}, OUTPUT: {OUTPUT}")
-    payload = json.dumps({"command_id": f"{command_id}", "command_status": f"{status}", "command_output": f"{OUTPUT}"})
+    print(f"send_status_update {taskRecordID}, STATUS: {status}, OUTPUT: {OUTPUT}")
+    payload = json.dumps({"command_id": f"{taskRecordID}", "command_status": f"{status}", "command_output": f"{OUTPUT}"})
     response = requests.post(update_req_url, data=payload, headers={'Content-Type': 'application/json'},
                            auth=(settings.username, settings.password))
-    valid_response_code(response.status_code, command_id)
+    valid_response_code(response.status_code, taskRecordID)
 
 # Initialize the message counter
 message_counter = 0
@@ -376,14 +383,21 @@ def send_successORfailed_status(req_id, status_message=None, output_message=None
 
 def send_gaia_status(fullTaskJson, status_message=None, output=None, error=None, req_cmd=None, destination=None, gateway=None, req_vlans=None,req_interface_name=None):
     taskCommandID = fullTaskJson["command_number"]
+    taskRecordID = fullTaskJson["record_id"]
+    print(f"send_gaia_status taskCommandID:{taskCommandID} status_message {status_message}")
     if status_message == "status: success":
         redis_set(taskCommandID, "completed")
-        task_status = get_task_status(fullTaskJson)
+        task_status = "completed"
         print(f"send_gaia_status: {task_status}")
-        send_status_update(taskCommandID, task_status, output)
+        redis_remove_list(fullTaskJson, "completed", output)
+        send_status_update(taskRecordID, "completed", output)
+
+        # send_status_update(taskCommandID, task_status, output)
 
     elif status_message == "status: failed":
-        if req_cmd.lower() == "add route":
+        if not req_cmd:
+            output = f"{status_message} Could not find route for {destination} and gateway {gateway if gateway else 'None'}: {error}"
+        elif req_cmd.lower() == "add route":
             output = f"{status_message} Error adding route for {destination} and gateway {gateway if gateway else 'None'}: {error}"
         elif req_cmd.lower() == "delete route":
             output = f"{status_message} Error removing route for {destination} and gateway {gateway if gateway else 'None'}: {error}"
@@ -408,7 +422,7 @@ def check_privileged_connection(connection):
         flush(connection)  # flush everything from before
         connection.shell.sendall('\n')
 
-        time.sleep(.3)
+        sleep(.3)
         data = str(connection.shell.recv(buffer_size), encoding='utf-8').strip()
         flush(connection)  # flush everything after (just in case)
 
@@ -436,21 +450,21 @@ def change_interface_mode(ip_address, username, password, interface, mode, vlan_
     connection = ssh_new(ip_address, username, password)
     try:
         connection.open_shell()
-        time.sleep(1)
+        sleep(1)
 
         if not check_privileged_connection(connection):
             if enable_pass is not None:
                 connection.send_shell('enable')
-                time.sleep(1)
+                sleep(1)
                 connection.send_shell(enable_pass)
-                time.sleep(1)
+                sleep(1)
             else:
                 raise ValueError('enable_pass is missing, and SSH connection is not privileged')
 
         connection.send_shell('conf terminal')
-        time.sleep(1)
+        sleep(1)
         connection.send_shell(f'interface {interface}')
-        time.sleep(1)
+        sleep(1)
 
         # Remove any existing configuration related to the opposite mode
         if mode == 'trunk':
@@ -492,7 +506,7 @@ def change_interface_mode(ip_address, username, password, interface, mode, vlan_
         connection.send_shell('exit')
         connection.send_shell('exit')
         connection.send_shell('write memory')  # Save the configuration to memory
-        time.sleep(10)  # Give it some time to save the configuration
+        sleep(10)  # Give it some time to save the configuration
         connection.close_connection()
 
     except (paramiko.AuthenticationException, paramiko.SSHException) as error:

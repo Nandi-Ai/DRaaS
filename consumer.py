@@ -317,8 +317,8 @@ def main():
                                 output = f"{output}"
                             redis_set(taskCommandID, "completed_tasks")
                             # testing                             
-                            task_sts = json.loads(redis_server.get(taskFromQueueRecordID).decode())["status"]
-                            send_status_update(taskFromQueueRecordID, task_sts, output)
+                            # task_sts = json.loads(redis_server.get(taskFromQueueRecordID).decode())["status"]
+                            send_status_update(taskFromQueueRecordID, "completed", output)
                             update_credential_dict(req_switch_ip, retrieved_user, retrieved_password, "success")
 
                 # When a task is completed, remove the "current_task" key
@@ -342,9 +342,6 @@ def main():
                             elif action == "removed":
                                 output = f'Cannot delete the VLAN because: {cmd_output}'
                             send_logs.send_data_to_flask(0, 'Calling function (send_gaia_status)...',  service_name)
-                            
-                            
-                                            # this should be json_req not taskFromQueueRecordID
                             send_gaia_status(json_req, status_message="status: failed", output=output, error=output,
                                             req_cmd=req_cmd, destination=destination, gateway=gateway, req_vlans=req_vlans,req_interface_name=req_interface_name)
                         else:
