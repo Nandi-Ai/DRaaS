@@ -32,7 +32,7 @@ def send_health_monitoring_update(producer: dict, consumer: dict, redis: dict) -
             return
         try:
             answer = requests.post(update_status_url, data=payload,
-                                headers={'Content-Type': 'application/json'}, auth=(settings.username, settings.password),timeout=5).json()
+                                headers={'Content-Type': 'application/json'}, auth=(settings.username, settings.password), timeout=5).json()
         except (requests.ConnectionError, requests.Timeout) as err:
             print(f"Network error occurred: {err}. Retrying in 10 seconds...")
             time.sleep(5)  # Sleep for 10 seconds before retrying in case of network errors

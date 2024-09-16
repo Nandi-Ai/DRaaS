@@ -223,7 +223,7 @@ def task_set_status_and_queue(fullTaskJson, taskStatus="", output=""):
             redis_remove_list(taskCommandID, taskStatus, output)
             send_logs.send_data_to_flask(0, output,  "consumer")
         elif taskStatus == "in_progress":
-            print("task: in_progress")
+            print(f"task: {taskCommandID} in_progress")
             redis_server.lpush(in_progress_tasks, json.dumps(fullTaskJson))
             rabbitmq_push(fullTaskJson, in_progress_tasks)
             redis_server.set(taskCommandID, taskStatus, ex=600) # 10 minute
@@ -359,7 +359,7 @@ def valid_response_code(statusCode,ID):
         print("Api is not accesble. StatusCode is:", statusCode)
         logger.error('Error in updating API')
         send_logs_to_api(f'Error in updating API', 'error', settings.mid_server)
-        redis_server.rpush(incompleted_tasks, ID)
+        redis_server.rpush(incomplete_tasks, ID)
 
 #Not Working Function - Fix
 def send_successORfailed_status(req_id, status_message=None, output_message=None, error=None, output=None, req_switch_ip=None, retrieved_user=None, retrieved_password=None):

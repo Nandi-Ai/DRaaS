@@ -270,9 +270,7 @@ def main():
                                                             routing_key=completed_tasks,
                                                             body=json.dumps(json_req),
                                                             properties=pika.BasicProperties(delivery_mode=2))
-                                #### TODO output from where?
-                                task_sts = json.loads(redis_server.get(taskFromQueueRecordID).decode())["status"]
-                                send_status_update(taskFromQueueRecordID, task_sts, output)
+                                send_status_update(taskFromQueueRecordID, "completed", output)
                                 update_credential_dict(req_switch_ip, retrieved_user, retrieved_password, "success")
 
                     else:
