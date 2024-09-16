@@ -323,8 +323,15 @@ def send_status_update(taskRecordID, STATUS, OUTPUT):
     status = STATUS.lower()
     print(f"send_status_update {taskRecordID}, STATUS: {status}, OUTPUT: {OUTPUT}")
     payload = json.dumps({"command_id": f"{taskRecordID}", "command_status": f"{status}", "command_output": f"{OUTPUT}"})
-    response = requests.post(update_req_url, data=payload, headers={'Content-Type': 'application/json'},
-                           auth=(settings.username, settings.password))
+    for i in range(3):
+        try:
+            response = requests.post(update_req_url, data=payload, headers={'Content-Type': 'application/json'},
+                           auth=(settings.username, settings.password) timeout=5)
+            break
+        except requests.Timeout:
+            print ("Timeout connecting to api")
+        except requests.ConnectionError:
+            print ("Connection error to S/N API")
     valid_response_code(response.status_code, taskRecordID)
 
 # Initialize the message counter
@@ -343,7 +350,7 @@ def send_logs_to_api(message, severity, source):
             "message_id": message_id})
         print(f"send_logs_to_api: {payload}")
         answer = requests.post(managment_logs_url, data=payload,
-                               headers={'Content-Type': 'application/json'}, auth=(settings.username, settings.password)).json()
+                               headers={'Content-Type': 'application/json'}, auth=(settings.username, settings.password), timeout=3).json()
     except Exception as e:
         logger.error("Error occurred while sending log to API: %s", str(e))
 
