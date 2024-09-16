@@ -118,6 +118,7 @@ def queue_push(task):
             #Active task
 
             if "active" in drStatus:   
+                redis_server.set(api_task_command_number, drStatus)
                 if redisJobStatus is None:
                     redis_server.set(api_task_command_number, drStatus)
                     print("Aha! Found new active status")                    
