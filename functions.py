@@ -1,10 +1,11 @@
-import time, sys, threading; from unittest import result; import requests, json, re, os; import logging
+import time, sys, threading 
+from unittest import result; import requests, json, re, os; import logging
 from datetime import datetime, timedelta; 
 import configparser,confparser; import paramiko; from ntc_templates.parse import parse_output
 from netmiko import ConnectHandler; import json; from dotenv import load_dotenv; from socket import *
 import glv; import redis
 load_dotenv()
-from time import sleep, time
+from time import sleep
 import settings; from settings import *; settings.init()
 import send_logs
 from rabbitmq import *
@@ -413,7 +414,7 @@ def check_privileged_connection(connection):
         flush(connection)  # flush everything from before
         connection.shell.sendall('\n')
 
-        time.sleep(.3)
+        sleep(.3)
         data = str(connection.shell.recv(buffer_size), encoding='utf-8').strip()
         flush(connection)  # flush everything after (just in case)
 
@@ -441,21 +442,21 @@ def change_interface_mode(ip_address, username, password, interface, mode, vlan_
     connection = ssh_new(ip_address, username, password)
     try:
         connection.open_shell()
-        time.sleep(1)
+        sleep(1)
 
         if not check_privileged_connection(connection):
             if enable_pass is not None:
                 connection.send_shell('enable')
-                time.sleep(1)
+                sleep(1)
                 connection.send_shell(enable_pass)
-                time.sleep(1)
+                sleep(1)
             else:
                 raise ValueError('enable_pass is missing, and SSH connection is not privileged')
 
         connection.send_shell('conf terminal')
-        time.sleep(1)
+        sleep(1)
         connection.send_shell(f'interface {interface}')
-        time.sleep(1)
+        sleep(1)
 
         # Remove any existing configuration related to the opposite mode
         if mode == 'trunk':
@@ -497,7 +498,7 @@ def change_interface_mode(ip_address, username, password, interface, mode, vlan_
         connection.send_shell('exit')
         connection.send_shell('exit')
         connection.send_shell('write memory')  # Save the configuration to memory
-        time.sleep(10)  # Give it some time to save the configuration
+        sleep(10)  # Give it some time to save the configuration
         connection.close_connection()
 
     except (paramiko.AuthenticationException, paramiko.SSHException) as error:
