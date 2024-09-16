@@ -227,6 +227,7 @@ def task_set_status_and_queue(fullTaskJson, taskStatus="", output=""):
             redis_server.lpush(in_progress_tasks, json.dumps(fullTaskJson))
             rabbitmq_push(fullTaskJson, in_progress_tasks)
             redis_server.set(taskCommandID, taskStatus, ex=600) # 10 minute
+            send_status_update(taskFromQueueRecordID, "in_progress", output)
             print(f"***** taskCommandID: {taskCommandID} is set {taskStatus} and pushed redis in_progress queue: *****")
         else:
             print(f"trying to set redis taskCommandID: {taskCommandID} to {taskStatus}")
