@@ -128,12 +128,13 @@ def queue_push(task):
                 
                     # pushing tasks inside rabbitmq 
                     rabbitmq_push(task, queue_name)
-                
+                    send_status_update(api_task_record_id,drStatus,"Pushed to Queue")
                     print(f"Job {api_task_record_id} pushed to queue {queue_name} and waiting to be executed")
                     return
             # If found this job on Redis what to do
             if redisJobStatus is not None:
                 print("redisJobStatus is not empty, job exists on Redis: ", redisJobStatus)
+                send_status_update(api_task_record_id, drStatus, "Job exists on cache - discarded")
                 print("Job discarded")
                 ### TODO THIS JOB WAS DONE
                 # send_logs.send_data_to_flask(1, f'Error decoding JSON for api_task_record_id: {api_task_record_id}, Error: {str(json_error)}...',  service_name)
