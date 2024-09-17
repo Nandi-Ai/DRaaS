@@ -161,10 +161,10 @@ def run_command_and_get_json(ip_address, username, password, command):
 
 
 def notify(task, status, msg =""):
-    # recordID=task["record_id"]
+    recordID=task["record_id"]
     taskCommandID=task["command_number"]
     if status == "failed":
-        send_status_update(taskCommandID, "failed", msg)
+        send_status_update(recordID, "failed", msg)
         send_logs.send_data_to_flask(0, f' {msg}  Task command id {taskCommandID}',  "consumer")
 
 
