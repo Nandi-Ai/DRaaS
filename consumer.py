@@ -214,6 +214,8 @@ def main():
                 # Attempt to establish the SSH connection
                 sshConnectStatus = ssh_client.try_connect(taskFromQueueRecordID)
                 send_logs.send_data_to_flask(0,f'SSH status: {sshConnectStatus}',  service_name)
+                send_status_update(taskFromQueueRecordID, "in_progress", "Attempt to establish the SSH connection")
+
                 if not sshConnectStatus:
                     # If failed to connect after MAX attempts, send a status update to ServiceNow
                     error_message = f"Failed to establish SSH connection to {req_switch_ip} after {SSHClient.MAX_RETRIES} attempts."
@@ -248,6 +250,7 @@ def main():
                         
                                 if output == None:
                                     output = "operation is done."
+                                send_status_update(taskFromQueueRecordID, "in_progress", output)
 
                             except Exception as error:
                                 output = f"{error}"
