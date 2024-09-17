@@ -133,7 +133,8 @@ def queue_push(task):
             # If found this job on Redis what to do
             if redisJobStatus is not None:
                 print("redisJobStatus is not empty, job exists on Redis: ", redisJobStatus)
-                send_status_update(api_task_record_id, drStatus, f"Job exists on cache as {redisJobStatus} - discarded")
+                if "active" in drStatus: 
+                  send_status_update(api_task_record_id, drStatus, f"Job exists on cache as {redisJobStatus} - discarded")
                 print("Job discarded")
                 ### TODO THIS JOB WAS DONE
                 # send_logs.send_data_to_flask(1, f'Error decoding JSON for api_task_record_id: {api_task_record_id}, Error: {str(json_error)}...',  service_name)
