@@ -278,7 +278,7 @@ def main():
                                 #                            routing_key=completed_tasks,
                                 #                            body=json.dumps(json_req),
                                 #                            properties=pika.BasicProperties(delivery_mode=2))
-                                send_status_update(taskFromQueueRecordID, "completed")
+                                send_status_update(taskFromQueueRecordID, "completed",output)
                                 update_credential_dict(req_switch_ip, retrieved_user, retrieved_password, "success")
 
                     else:
@@ -320,7 +320,7 @@ def main():
                             redis_set(taskCommandID, "completed_tasks")
                             # testing                             
                             # task_sts = json.loads(redis_server.get(taskFromQueueRecordID).decode())["status"]
-                            send_status_update(taskFromQueueRecordID, "completed")
+                            send_status_update(taskFromQueueRecordID, "completed",output)
                             update_credential_dict(req_switch_ip, retrieved_user, retrieved_password, "success")
 
                 # When a task is completed, remove the "current_task" key
