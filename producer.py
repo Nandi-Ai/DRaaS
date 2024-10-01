@@ -120,7 +120,7 @@ def queue_push(task):
             if "active" in drStatus:   
                 redis_server.set(api_task_command_number, drStatus)
                 if redisJobStatus is None:
-                    redis_server.set(api_task_command_number, drStatus)
+                    redis_server.set(api_task_command_number, drStatus, ex=200)
                     print("Aha! Found new active status")                    
                     send_logs.send_data_to_flask(0, f'job status is active...  {task["dr_status"]}',  service_name)                                                                
                     print(f"Job {api_task_record_id} pushed to queue and waiting to be executed")
@@ -148,7 +148,7 @@ def queue_push(task):
                 # if completed
             elif "queued" in drStatus or "in_progress" in drStatus:
                 print("requeued job counld not find in redis")
-                redis_server.set(api_task_command_number, "active")
+                redis_server.set(api_task_command_number, "active", ex=200)
                 if rabbitmq_push(task, api_queue_name): 
                     send_status_update(api_task_record_id,drStatus,"Pushed to Queue again")
                 else:
