@@ -27,7 +27,7 @@ rabbit_server = rabbit_connection()
 # Set the value of Enabled to Redis when the script starts
 # redis_server.set("Enabled", int(glv.Enabled))
 
-queue_name = glv.api_queue_name
+api_queue_name = glv.api_queue_name
 failed_tasks=glv.failed_tasks
 completed_tasks=glv.completed_tasks
 in_progress_tasks = glv.in_progress_tasks
@@ -111,8 +111,8 @@ def queue_push(task):
 
     try:
         print(f"DR Status: {drStatus}")
-        if bool(re.search('(active|failed|in_progress|queued)', drStatus)):
-            print("active/failed task condition status " ,drStatus)
+        if bool(re.search('(active|in_progress|queued)', drStatus)):
+            print("task S/N status " ,drStatus)
 
             send_logs.send_data_to_flask(0, f'recived task {task}', service_name) 
             #Active task
@@ -127,9 +127,9 @@ def queue_push(task):
                     # redis_server.rpush(queue_name, str(task))
                 
                     # pushing tasks inside rabbitmq 
-                    rabbitmq_push(task, queue_name)
+                    rabbitmq_push(task, api_queue_name)
                     send_status_update(api_task_record_id,drStatus,"Pushed to Queue")
-                    print(f"Job {api_task_record_id} pushed to queue {queue_name} and waiting to be executed")
+                    print(f"Job {api_task_record_id} pushed to queue {api_queue_name} and waiting to be executed")
                     return
                 else:
                     if redisJobStatus not in drStatus:
@@ -147,7 +147,7 @@ def queue_push(task):
             elif "queued" in drStatus or "in_progress" in drStatus:
                 print("requeued job counld not find in redis")
                 redis_server.set(api_task_command_number, "active")
-                rabbitmq_push(task, queue_name) 
+                rabbitmq_push(task, api_queue_name) 
                 send_status_update(api_task_record_id,drStatus,"Pushed to Queue again")
             
 
@@ -160,12 +160,7 @@ def queue_push(task):
                 print("Job exists on redis, quitting")
                 logger.warning(f"Job status is {drStatus} or None for record_id: {api_task_command_number}")
                 send_logs.send_data_to_flask(2, 'watning job status is empty or none record_id',  service_name)
-
-                #  print(f"else: {job_status}")
-                #  redis_server.rpush(queue_name, str(task))
-                #  redis_server.set(api_task_record_id, "active")
-                #  logger.info('Added %s to queue', task["api_task_record_id"])
-                #  print(f'added {task["api_task_record_id"]} to queue')
+         
         else:
           # print normal output for debug
           print(re.search('(active|failed|completed)', task["dr_status"]))
