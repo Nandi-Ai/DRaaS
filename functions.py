@@ -263,9 +263,12 @@ def rabbitmq_push(TASK, QUEUE_NAME):
                                     routing_key=QUEUE_NAME,
                                     body=json.dumps(TASK),
                                     properties=pika.BasicProperties(delivery_mode=2))
+        print (f"Pushed to {QUEUE_NAME} queue successfully")
+        logger.info(f"Pushed to {QUEUE_NAME} queue successfully")
         return True
     except Exception as err:
-        msg=("***** Error While pushing task in queue Error_msg: ", err, " *****")
+        print("***** Error While pushing task in queue Error_msg: ", err, " *****")
+        logger.error(f"cannot Pushed to {QUEUE_NAME}: {err}")
     return False
 
 
