@@ -163,8 +163,8 @@ def queue_push(task):
          
         else:
           # print normal output for debug
-          print(re.search('(active|failed|completed)', task["dr_status"]))
-          print("else quit")
+          print(f'** ** did not match task status is {task["dr_status"]}')
+          print("Job was discarded ** ** **")
 
 
     except Exception as e:
