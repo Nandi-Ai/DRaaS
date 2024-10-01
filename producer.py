@@ -127,8 +127,10 @@ def queue_push(task):
                     # redis_server.rpush(queue_name, str(task))
                 
                     # pushing tasks inside rabbitmq 
-                    rabbitmq_push(task, api_queue_name)
-                    send_status_update(api_task_record_id,"queued","Pushed to Queue")
+                    if rabbitmq_push(task, api_queue_name):
+                        send_status_update(api_task_record_id,"queued","Pushed to Queue")
+                    else:
+                        send_status_update(api_task_record_id,"queued","Error while pushing to Queue")
                     print(f"Job {api_task_record_id} pushed to queue {api_queue_name} and waiting to be executed")
                     return
                 else:
@@ -147,8 +149,10 @@ def queue_push(task):
             elif "queued" in drStatus or "in_progress" in drStatus:
                 print("requeued job counld not find in redis")
                 redis_server.set(api_task_command_number, "active")
-                rabbitmq_push(task, api_queue_name) 
-                send_status_update(api_task_record_id,drStatus,"Pushed to Queue again")
+                if rabbitmq_push(task, api_queue_name): 
+                    send_status_update(api_task_record_id,drStatus,"Pushed to Queue again")
+                else:
+                    send_status_update(api_task_record_id,drStatus,"Error while pushing to Queue again")
             
 
                 ##TODO updating this part

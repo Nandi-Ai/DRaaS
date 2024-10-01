@@ -21,7 +21,7 @@ config.read('../config/parameters.ini')
 logger = logging.getLogger(__name__)
 redis_server = redis.Redis(host='localhost', port=6379, db=0)
 redis_server = redis.StrictRedis(charset="utf=8", decode_responses=True)
-queue_name = glv.api_queue_name
+api_queue_name = glv.api_queue_name
 completed_tasks = glv.completed_tasks
 failed_tasks = glv.failed_tasks
 incomplete_tasks = glv.incomplete_tasks
@@ -32,6 +32,8 @@ managment_logs_url = settings.url + "/postSwitchManagmentLogs"
 added_vlan = glv.added_vlan
 credential_dict = glv.credential_dict
 max_attempts = 3
+
+rabbit_server.queue_declare(queue=str(api_queue_name))
 
 #SSH connection function
 class SSHClient:
@@ -253,14 +255,18 @@ def task_set_status_and_queue(fullTaskJson, taskStatus="", output=""):
 
 
 def rabbitmq_push(TASK, QUEUE_NAME):
+    rabbit_server.queue_bind(exchange="", queue=QUEUE_NAME, routing_key=QUEUE_NAME)
+
+
     try:
         rabbit_server.basic_publish(exchange="",
                                     routing_key=QUEUE_NAME,
                                     body=json.dumps(TASK),
                                     properties=pika.BasicProperties(delivery_mode=2))
-        print(f"***** Successfully Pushed to {QUEUE_NAME} *****")
+        return True
     except Exception as err:
-        print("***** Error While pushing task in queue Error_msg: ", err, " *****")
+        msg=("***** Error While pushing task in queue Error_msg: ", err, " *****")
+    return False
 
 
 def push_in_wait_queue(task):
