@@ -132,7 +132,8 @@ def queue_push(task):
                     print(f"Job {api_task_record_id} pushed to queue {queue_name} and waiting to be executed")
                     return
                 else:
-                    send_status_update(api_task_record_id, "queued", f"Job exists on cache as {redisJobStatus}")
+                    if redisJobStatus not in drStatus:
+                        send_status_update(api_task_record_id, redisJobStatus, f"Job exists on cache as {redisJobStatus}")
                     
             # If found this job on Redis what to do
             if redisJobStatus is not None:

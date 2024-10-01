@@ -162,7 +162,7 @@ def main():
                 priority = json_req["priority"]
                 api_status = get_id_status(taskFromQueueRecordID)
                 api_dr_status = api_status[0]['dr_status']
-                print(f"api_status: {api_dr_status}")
+                print(f"** * api_status: {api_dr_status}")
                 if 'failed' in api_dr_status:
                     # update Redis with new status and push to failed queue if not exists
                     task_set_status_and_queue(json_req, "failed")
