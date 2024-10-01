@@ -179,6 +179,16 @@ def redis_set(taskCommandID, taskStatus):
     print(f"redis_set taskCommandID: {taskCommandID} taskStatus: {taskStatus}")
     redis_server.set(taskCommandID,taskStatus)
 
+def clean_redis_list():
+    allTasksinList = redis_server.lrange("inprogress_list", 0, -1)
+    for task in allTasksinList:
+           taskCommandFromList = task["command_number"]
+           redisJobStatus = redis_server.get(taskCommandFromList) 
+           if redisJobStatus is None:
+               redis_remove_list(task, "incomplete")
+               
+               
+
 
 def redis_remove_list(fullTaskJson="", task_status="", output = ""):
         taskCommandID = fullTaskJson["command_number"]
@@ -191,7 +201,7 @@ def redis_remove_list(fullTaskJson="", task_status="", output = ""):
             if taskCommandIDL == taskCommandID:
                 redis_server.lrem("inprogress_list", 10, task)
                 print(f"removed {taskCommandID} from redis list")
-                if task_status == "in_progress":
+                if task_status == "in_progress" or task_status == "incomplete":
                     rabbitmq_push(task, incomplete_tasks)
                     send_status_update(taskFromQueueRecordID, "incomplete", "taking too long to process")
                     send_logs.send_data_to_flask(0, f'task {taskCommandID} is stuck. pushing to incomplete_tasks',  "consumer")
@@ -225,7 +235,7 @@ def task_set_status_and_queue(fullTaskJson, taskStatus="", output=""):
         elif taskStatus == "in_progress":
             print(f"task: {taskCommandID} in_progress")
             redis_server.lpush(in_progress_tasks, json.dumps(fullTaskJson))
-            rabbitmq_push(fullTaskJson, in_progress_tasks)
+            # rabbitmq_push(fullTaskJson, in_progress_tasks)
             redis_server.set(taskCommandID, taskStatus, ex=600) # 10 minute
             send_status_update(taskFromQueueRecordID, "in_progress", output)
             print(f"***** taskCommandID: {taskCommandID} is set {taskStatus} and pushed redis in_progress queue: *****")

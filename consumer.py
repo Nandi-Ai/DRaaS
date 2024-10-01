@@ -130,7 +130,7 @@ def main():
                         
                 #         print("there is failed jobs trying to proccess one more time")
                 #         break
-   
+            clean_redis_list()
             print("Queue is empty. Waiting...")
             logger.info("Queue is empty. Waiting...." )
             # sending data to flask api
