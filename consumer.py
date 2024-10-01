@@ -224,6 +224,7 @@ def main():
                     # If failed to connect after MAX attempts, send a status update to ServiceNow
                     error_message = f"Failed to establish SSH connection to {req_switch_ip} after {SSHClient.MAX_RETRIES} attempts."
                     task_set_status_and_queue(json_req, "failed", error_message)
+                    send_status_update(taskFromQueueRecordID, "failed",error_message)
                     continue
                 send_logs.send_data_to_flask(0, f'closing ssh connection to {req_switch_ip}',  service_name)
                 ssh_client.close_connection()
