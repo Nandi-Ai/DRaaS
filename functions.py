@@ -340,7 +340,7 @@ def update_credential_dict(ip, username, password, status):
     credential_dict[ip] = {"timestamp": timestamp, "status": status, "user": username, "pass": password}
 
 # Function to send a status or update to ServiceNow API
-def send_status_update(taskRecordID, STATUS, OUTPUT):
+def send_status_update(taskRecordID, STATUS, OUTPUT=""):
     status = STATUS.lower()
     print(f"send_status_update {taskRecordID}, STATUS: {status}, OUTPUT: {OUTPUT}")
     logger.info(f"send_status_update - {taskRecordID}, STATUS: {status}, OUTPUT: {OUTPUT}")
