@@ -135,25 +135,20 @@ def queue_push(task):
             if redisJobStatus is not None:
                 print("redisJobStatus is not empty, job exists on Redis: ", redisJobStatus)
                 if "active" in drStatus: 
-                  send_status_update(api_task_record_id, "in_progress", f"Job exists on cache as {redisJobStatus}")
+                  send_status_update(api_task_record_id, "queued", f"Job exists on cache as {redisJobStatus}")
                 print("Job discarded")
                 ### TODO THIS JOB WAS DONE
                 # send_logs.send_data_to_flask(1, f'Error decoding JSON for api_task_record_id: {api_task_record_id}, Error: {str(json_error)}...',  service_name)
                 return  # Exit the function if JSON decoding fails
                 # if completed
-                if "completed" in redisJobStatus["dr_status"]:
-
-                    print("This job is already completed")
-                    send_logs.send_data_to_flask(0, f'completed...', service_name)
-                    
-                    ###TODO Get output of known task
-                    send_status_update(task["record_id"], redisJobStatus["status"], "completed")
-                    
+            if "queued" in drStatus:
+                redis_server.set(api_task_command_number, drStatus)
+                rabbitmq_push(task, queue_name) 
+                send_status_update(api_task_record_id,drStatus,"Pushed to Queue again")
+            
 
                 ##TODO updating this part
                 #failed task wait with the task, low priority
-                if api_task_command_number not in [json.loads(t)["record_id"] for t in redis_server.lrange(failed_tasks,0,-1)]:
-                    send_logs.send_data_to_flask(0, f'failed job... ',  service_name)                                                                
                     ## TODO Fix this part
                     ## redis_set(failed_tasks, task)
 
