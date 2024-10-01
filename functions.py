@@ -33,7 +33,7 @@ added_vlan = glv.added_vlan
 credential_dict = glv.credential_dict
 max_attempts = 3
 
-rabbit_server.queue_declare(queue=str(api_queue_name))
+# rabbit_server.queue_declare(queue=str(api_queue_name))
 
 #SSH connection function
 class SSHClient:
@@ -255,11 +255,11 @@ def task_set_status_and_queue(fullTaskJson, taskStatus="", output=""):
 
 
 def rabbitmq_push(TASK, QUEUE_NAME):
-    rabbit_server.queue_bind(exchange="", queue=QUEUE_NAME, routing_key=QUEUE_NAME)
+    rabbit_server.queue_bind(exchange="DRAAS", queue=QUEUE_NAME, routing_key=QUEUE_NAME)
 
 
     try:
-        rabbit_server.basic_publish(exchange="",
+        rabbit_server.basic_publish(exchange="DRAAS",
                                     routing_key=QUEUE_NAME,
                                     body=json.dumps(TASK),
                                     properties=pika.BasicProperties(delivery_mode=2))

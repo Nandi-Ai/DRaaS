@@ -272,7 +272,7 @@ def main():
                                     output = f"{output}"
                                 redis_server.set(taskCommandID, "completed")
                                 # testing
-                                #rabbit_server.basic_publish(exchange="",
+                                #rabbit_server.basic_publish(exchange="DRAAS",
                                 #                            routing_key=completed_tasks,
                                 #                            body=json.dumps(json_req),
                                 #                            properties=pika.BasicProperties(delivery_mode=2))
