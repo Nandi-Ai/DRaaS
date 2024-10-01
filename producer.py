@@ -111,7 +111,7 @@ def queue_push(task):
 
     try:
         print(f"DR Status: {drStatus}")
-        if bool(re.search('(active|failed)', drStatus)):
+        if bool(re.search('(active|failed|in_progress|queued)', drStatus)):
             print("active/failed task condition status " ,drStatus)
 
             send_logs.send_data_to_flask(0, f'recived task {task}', service_name) 
