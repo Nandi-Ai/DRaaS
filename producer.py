@@ -144,7 +144,8 @@ def queue_push(task):
                 return  # Exit the function if JSON decoding fails
                 # if completed
             elif "queued" in drStatus or "in_progress" in drStatus:
-                redis_server.set(api_task_command_number, drStatus)
+                print("requeued job counld not find in redis")
+                redis_server.set(api_task_command_number, "active")
                 rabbitmq_push(task, queue_name) 
                 send_status_update(api_task_record_id,drStatus,"Pushed to Queue again")
             
