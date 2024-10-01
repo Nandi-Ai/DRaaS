@@ -343,6 +343,7 @@ def update_credential_dict(ip, username, password, status):
 def send_status_update(taskRecordID, STATUS, OUTPUT):
     status = STATUS.lower()
     print(f"send_status_update {taskRecordID}, STATUS: {status}, OUTPUT: {OUTPUT}")
+    logger.info(f"send_status_update - {taskRecordID}, STATUS: {status}, OUTPUT: {OUTPUT}")
     payload = json.dumps({"command_id": f"{taskRecordID}", "command_status": f"{status}", "command_output": f"{OUTPUT}"})
     for i in range(3):
         try:
@@ -350,9 +351,11 @@ def send_status_update(taskRecordID, STATUS, OUTPUT):
                            auth=(settings.username, settings.password), timeout=5)
             break
         except requests.Timeout:
-            print ("Timeout connecting to api")
+            print ("Timeout connecting to api -  Timeout connecting to api")
+            logger.error("send_status_update ")
         except requests.ConnectionError:
             print ("Connection error to S/N API")
+            logger.error("send_status_update - Connection error to S/N API")
     valid_response_code(response.status_code, taskRecordID)
 
 # Initialize the message counter
