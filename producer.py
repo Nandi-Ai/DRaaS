@@ -158,7 +158,7 @@ def queue_push(task):
 
             else:
                 print("Job exists on redis, quitting")
-                logger.warning("Job status is empty or None for record_id: %s", task["record_id"])
+                logger.warning(f"Job status is {drStatus} or None for record_id: {api_task_command_number}")
                 send_logs.send_data_to_flask(2, 'watning job status is empty or none record_id',  service_name)
 
                 #  print(f"else: {job_status}")
