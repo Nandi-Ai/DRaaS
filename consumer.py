@@ -107,6 +107,7 @@ def main():
                 taskFromQueue = rabbitmq_queue_get(from_api_queue)
                 taskStatus = get_task_status(taskFromQueue)
                 logger.info(f"task from queue {taskFromQueue} task status {taskStatus}")
+
                 if "in_progress" == taskStatus or "completed" == taskStatus:
                     print("Task already running")
                     continue
@@ -170,7 +171,7 @@ def main():
                     task_set_status_and_queue(json_req, "failed")
                     # redis_server.set(taskCommandID, "failed")
                     continue
-
+                send_status_update(taskFromQueueRecordID,"in_progress","f'task from queue {taskFromQueue} task status {taskStatus}'")
                 if json_req["command"] != "":
                     req_cmd = json_req["command"]
                 else:

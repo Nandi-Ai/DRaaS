@@ -128,7 +128,7 @@ def queue_push(task):
                 
                     # pushing tasks inside rabbitmq 
                     rabbitmq_push(task, api_queue_name)
-                    send_status_update(api_task_record_id,drStatus,"Pushed to Queue")
+                    send_status_update(api_task_record_id,"queued","Pushed to Queue")
                     print(f"Job {api_task_record_id} pushed to queue {api_queue_name} and waiting to be executed")
                     return
                 else:
