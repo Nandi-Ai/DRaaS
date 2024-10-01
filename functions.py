@@ -62,7 +62,7 @@ class SSHClient:
                 return True
             except Exception as e:
                 print(f"Failed to connect. Attempt {attempts}/{self.MAX_RETRIES}. Error: {e}")
-                send_status_update(req_id, "Active", f"Attempt {attempts}/{self.MAX_RETRIES} failed.")
+                send_status_update(req_id, "in_progress", f"Attempt {attempts}/{self.MAX_RETRIES} failed.")
                 if (attempts < self.MAX_RETRIES):
                     sleep(10)  # Wait for 10 seconds before retrying
         return False
