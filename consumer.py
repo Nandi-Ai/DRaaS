@@ -106,6 +106,7 @@ def main():
             if q_len > 0:
                 taskFromQueue = rabbitmq_queue_get(from_api_queue)
                 taskStatus = get_task_status(taskFromQueue)
+                logger.info(f"task from queue {taskFromQueue} task status {taskStatus}")
                 if "in_progress" == taskStatus or "completed" == taskStatus:
                     print("Task already running")
                     continue
@@ -113,9 +114,9 @@ def main():
                     break
             else:
 
-                taskFromQueue = check_wait_queue()
-                if taskFromQueue:
-                    break
+                taskFromWaitQueue = check_wait_queue()
+                if taskFromWaitQueue:
+                    print("break")
 
                 # if job is stuck more than 2 minute it will try to process one more time.
                 # if stuck_jobs:
@@ -163,6 +164,7 @@ def main():
                 api_status = get_id_status(taskFromQueueRecordID)
                 api_dr_status = api_status[0]['dr_status']
                 print(f"** * api_status: {api_dr_status}")
+                logger.info(f"api_status: {api_dr_status}")
                 if 'failed' in api_dr_status:
                     # update Redis with new status and push to failed queue if not exists
                     task_set_status_and_queue(json_req, "failed")
