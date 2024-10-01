@@ -203,6 +203,7 @@ def main():
                 
         if switch_device_type is not None:
             # Get credentials from the dictionary
+            send_status_update(taskFromQueueRecordID, "in_progress", "retrieving credentials")
             retrieved_user, retrieved_password = get_credentials(req_switch_ip)
 
             if retrieved_user is None:

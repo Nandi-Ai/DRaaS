@@ -148,13 +148,15 @@ def run_command_and_get_json(ip_address, username, password, command):
                 output = ssh_client.exec_command(command, use_textfsm=True)
                 json_data = json.dumps(output, indent=2)
         else:
-            raise ValueError("Unsupported device type detected.")
+            error_msg =  { "error": "Unsupported device type detected." }
+            return json.dumps(error_msg)
 
         return json_data
 
     except (paramiko.AuthenticationException, paramiko.SSHException, ValueError) as error:
         # Raise an exception if there is an error during the connection or if unsupported device type detected
-        raise error
+        error_msg =  { "error": f"{error}" }
+        return json.dumps(error_msg)
 
     finally:
         # Close the SSH connection when done
@@ -231,7 +233,7 @@ def task_set_status_and_queue(fullTaskJson, taskStatus="", output=""):
         if taskStatus == "failed":
             print("task: failed")
             send_status_update(taskFromQueueRecordID, taskStatus, output)
-            redis_set(taskCommandID, taskStatus)
+            redis_server.set(taskCommandID, taskStatus)
             redis_remove_list(taskCommandID, taskStatus, output)
             send_logs.send_data_to_flask(0, output,  "consumer")
         elif taskStatus == "in_progress":
@@ -239,7 +241,7 @@ def task_set_status_and_queue(fullTaskJson, taskStatus="", output=""):
             redis_server.lpush(in_progress_tasks, json.dumps(fullTaskJson))
             # rabbitmq_push(fullTaskJson, in_progress_tasks)
             redis_server.set(taskCommandID, taskStatus, ex=600) # 10 minute
-            send_status_update(taskFromQueueRecordID, "in_progress", output)
+            send_status_update(taskFromQueueRecordID, "in_progress")
             print(f"***** taskCommandID: {taskCommandID} is set {taskStatus} and pushed redis in_progress queue: *****")
         else:
             print(f"trying to set redis taskCommandID: {taskCommandID} to {taskStatus}")
@@ -269,7 +271,7 @@ def rabbitmq_push(TASK, QUEUE_NAME):
     except Exception as err:
         print("***** Error While pushing task in queue Error_msg: ", err, " *****")
         logger.error(f"cannot Pushed to {QUEUE_NAME}: {err}")
-    return False
+        return False
 
 
 def push_in_wait_queue(task):
