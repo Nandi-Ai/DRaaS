@@ -19,4 +19,4 @@ def rabbit_connection():
     )
     
     rabbit_channel = connection.channel()
-    return rabbit_channel
+    return rabbit_channel,connection

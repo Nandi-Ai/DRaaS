@@ -17,7 +17,7 @@ settings.init()
 service_name = "producer"
 
 # testing
-rabbit_server = rabbit_connection()
+rabbit_server, connection = rabbit_connection()
 # rabbit_server.queue_declare(queue=queue_name)
 
 

@@ -8,7 +8,7 @@ import send_logs
 from datetime import datetime; 
 
 from rabbitmq import *
-rabbit_server = rabbit_connection()
+rabbit_server, connection  = rabbit_connection()
 
 logging.getLogger('pika').setLevel(logging.CRITICAL)
 
@@ -175,11 +175,12 @@ def main():
                     task_set_status_and_queue(json_req, "failed")
                     # redis_server.set(taskCommandID, "failed")
                     continue
-                send_status_update(taskFromQueueRecordID,"in_progress","f'task from queue {taskFromQueue} task status {taskStatus}'")
+                send_status_update(taskFromQueueRecordID,"in_progress",f'task from queue {taskFromQueue} task status {taskStatus}')
                 if json_req["command"] != "":
                     req_cmd = json_req["command"]
                 else:
                     req_cmd = ""
+                logger.info(f"command to be run: {req_cmd}")
         else:
             print("Queue is empty. Waiting...")
             logger.info("Queue is empty. Waiting...")
@@ -204,7 +205,7 @@ def main():
                 switch_password = switch_details['result'][i]['password']
                 switch_device_type = switch_details['result'][i]['device_type']
                 break
-                
+        logger.info(f"device type: {switch_device_type}, req_port_mode: {req_port_mode} ")
         if switch_device_type is not None:
             # Get credentials from the dictionary
             send_status_update(taskFromQueueRecordID, "in_progress", "retrieving credentials")
@@ -234,23 +235,24 @@ def main():
                 ssh_client.close_connection()
 
             if switch_device_type == 'switch':
+                logger.info(f"retrieved user: {retrieved_user}, {retrieved_password}")
                 if (retrieved_user is not None and retrieved_password is not None):
+                    logger.info(f"Connected with SSH to switch and has credentials port-mode {req_port_mode}")
                     # Check if the credentials status is 'failed' and the last attempt was 5 minutes ago
                     if (
                         retrieved_user == switch_user and retrieved_password == switch_password and req_switch_ip in credential_dict and credential_dict[req_switch_ip]["status"] == "failed"):
                         time_since_last_attempt = time() - credential_dict[req_switch_ip]["timestamp"]
                         if time_since_last_attempt > 300:  # 300 seconds = 5 minutes ####NEED to remove
+                            logger.info("switch access timeout over 300")
                             try:
-                                if req_cmd != "" and req_port_mode == "":
-                                    if req_interface_name != "":
-                                        send_logs.send_data_to_flask(0, 'calling function (run_command_and_get_json)',  service_name)
-                                        output = run_command_and_get_json(req_switch_ip, retrieved_user, retrieved_password, req_cmd)
-                                    else:
-                                        send_logs.send_data_to_flask(0, 'calling function (run_command_and_get_json)...',  service_name)
-                                        output = run_command_and_get_json(req_switch_ip, retrieved_user, retrieved_password, req_cmd)
+                                if req_cmd != "": 
+                                #and req_port_mode == "":
+                                    output = run_command_and_get_json(req_switch_ip, retrieved_user, retrieved_password, req_cmd)
+                                    send_logs.send_data_to_flask(0, 'calling function (run_command_and_get_json)',  service_name)
                                 else:
-                                    send_logs.send_data_to_flask(0, 'calling function (change_interface_mode)...',  service_name)
+                                    # send_logs.send_data_to_flask(0, 'calling function (change_interface_mode)...',  service_name)
                                     output = change_interface_mode(req_switch_ip, retrieved_user, retrieved_password, req_interface_name, req_port_mode, req_vlans)
+                                logger.info(f"Switch command output: {output}")
                                 if glv.added_vlan is not None:  # Check if a VLAN was added
                                     output_message = "Added VLANs: " + ", ".join(map(str, added_vlan))
                                     glv.added_vlan = None  # Reset it after displaying the message
@@ -287,24 +289,21 @@ def main():
 
                     else:
                         try:
-                            if req_cmd != "" and req_port_mode == "":
-                                if req_interface_name != "":
-                                    send_logs.send_data_to_flask(0, f"running {req_cmd}",  service_name)
-                                    output = run_command_and_get_json(req_switch_ip, retrieved_user, retrieved_password, req_cmd)
-                                else:
-                                    send_logs.send_data_to_flask(0, f"running {req_cmd}",  service_name)
-                                    output = run_command_and_get_json(req_switch_ip, retrieved_user, retrieved_password, req_cmd)
+                            if req_port_mode is None:
+                                send_logs.send_data_to_flask(0, f"running {req_cmd}",  service_name)
+                                output = run_command_and_get_json(req_switch_ip, retrieved_user, retrieved_password, req_cmd)
                             else:
                                 send_logs.send_data_to_flask(0, f"calling function (change_interface_mode) on {req_switch_ip} ",  service_name)
                                 output = change_interface_mode(req_switch_ip, retrieved_user, retrieved_password, req_interface_name, req_port_mode, req_vlans)
-
-                            if glv.added_vlan is not None:  # Check if a VLAN was added
+                            logger.info(f"Switch command output: {output}")
+                            send_status_update(taskFromQueueRecordID, "in_progress", output)
+                            if glv.added_vlan:  # Check if a VLAN was added
                                 output_message = "Added VLANs: " + ", ".join(map(str, added_vlan))
                                 glv.added_vlan = None  # Reset it after displaying the message
                             else:
                                 output_message = ""
 
-                            if output == None:
+                            if output is None:
                                 output = "operation is done."
                         except Exception as error:
                             output = f"{error}"
@@ -321,7 +320,7 @@ def main():
                                 output = f"{output_message}\n{output}"
                             else:
                                 output = f"{output}"
-                            redis_set(taskCommandID, "completed_tasks")
+                            redis_set(taskCommandID, "completed")
                             # testing                             
                             # task_sts = json.loads(redis_server.get(taskFromQueueRecordID).decode())["status"]
                             send_status_update(taskFromQueueRecordID, "completed",output)
