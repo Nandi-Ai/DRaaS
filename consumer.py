@@ -232,11 +232,13 @@ def main():
 
             if switch_device_type == 'switch':
                 if (retrieved_user is not None and retrieved_password is not None):
+                    logger.info(f"Connected with SSH to switch and has credentials port-mode {req_port_mode}")
                     # Check if the credentials status is 'failed' and the last attempt was 5 minutes ago
                     if (
                         retrieved_user == switch_user and retrieved_password == switch_password and req_switch_ip in credential_dict and credential_dict[req_switch_ip]["status"] == "failed"):
                         time_since_last_attempt = time() - credential_dict[req_switch_ip]["timestamp"]
                         if time_since_last_attempt > 300:  # 300 seconds = 5 minutes ####NEED to remove
+                            logger.info("switch access timeout over 300")
                             try:
                                 if req_cmd != "": 
                                 #and req_port_mode == "":
