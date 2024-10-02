@@ -172,8 +172,8 @@ def main():
                     # redis_server.set(taskCommandID, "failed")
                     continue
                 send_status_update(taskFromQueueRecordID,"in_progress","f'task from queue {taskFromQueue} task status {taskStatus}'")
-                if json_req["command"] != "":
-                    req_cmd = json_req["command"]
+                if json_req["commands"] != "":
+                    req_cmd = json_req["commands"]
                 else:
                     req_cmd = ""
         else:
@@ -239,13 +239,14 @@ def main():
                             try:
                                 if req_cmd != "" and req_port_mode == "":
                                     if req_interface_name != "":
-                                        send_logs.send_data_to_flask(0, 'calling function (run_command_and_get_json)',  service_name)
                                         output = run_command_and_get_json(req_switch_ip, retrieved_user, retrieved_password, req_cmd)
+                                        send_logs.send_data_to_flask(0, 'calling function (run_command_and_get_json)',  service_name)
+
                                     else:
-                                        send_logs.send_data_to_flask(0, 'calling function (run_command_and_get_json)...',  service_name)
+                                        #send_logs.send_data_to_flask(0, 'calling function (run_command_and_get_json)...',  service_name)
                                         output = run_command_and_get_json(req_switch_ip, retrieved_user, retrieved_password, req_cmd)
                                 else:
-                                    send_logs.send_data_to_flask(0, 'calling function (change_interface_mode)...',  service_name)
+                                    # send_logs.send_data_to_flask(0, 'calling function (change_interface_mode)...',  service_name)
                                     output = change_interface_mode(req_switch_ip, retrieved_user, retrieved_password, req_interface_name, req_port_mode, req_vlans)
                                 if glv.added_vlan is not None:  # Check if a VLAN was added
                                     output_message = "Added VLANs: " + ", ".join(map(str, added_vlan))
