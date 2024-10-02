@@ -32,7 +32,11 @@ def send_health_monitoring_update(producer: dict, consumer: dict, redis: dict) -
             return
         try:
             answer = requests.post(update_status_url, data=payload,
+<<<<<<< HEAD
                                 headers={'Content-Type': 'application/json'}, auth=(settings.username, settings.password),timeout=3).json()
+=======
+                                headers={'Content-Type': 'application/json'}, auth=(settings.username, settings.password), timeout=5).json()
+>>>>>>> monitoring
         except (requests.ConnectionError, requests.Timeout) as err:
             print(f"Network error occurred: {err}. returning None ")
             return None
