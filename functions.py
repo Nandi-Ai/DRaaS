@@ -122,6 +122,7 @@ def get_device_type(ssh_client):
         raise ValueError("Unsupported device type detected.")
 
 def run_command_and_get_json(ip_address, username, password, command):
+    logger.info(f"%%%% run_command_and_get_json {ip_address} {command}")
     # Create an instance of the SSHClient class
     ssh_client = SSHClient(ip_address, username, password)
     try:
