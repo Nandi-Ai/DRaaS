@@ -149,8 +149,8 @@ def run_command_and_get_json(ip_address, username, password, command):
                 output = ssh_client.exec_command(command, use_textfsm=True)
                 json_data = json.dumps(output, indent=2)
         else:
-            logging.error("error": "Unsupported device type detected.")
-            error_msg =  { "error": "Unsupported device type detected." }
+            logging.error("error - Unsupported device type detected.")
+            error_msg =  { "error: Unsupported device type detected." }
             return json.dumps(error_msg)
         logging.info(f"{output}")
         return json_data
