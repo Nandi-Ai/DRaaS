@@ -8,7 +8,7 @@ import send_logs
 from datetime import datetime; 
 
 from rabbitmq import *
-rabbit_server = rabbit_connection()
+rabbit_server, connection  = rabbit_connection()
 
 logging.getLogger('pika').setLevel(logging.CRITICAL)
 

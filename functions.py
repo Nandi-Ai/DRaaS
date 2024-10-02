@@ -257,21 +257,24 @@ def task_set_status_and_queue(fullTaskJson, taskStatus="", output=""):
 
 
 def rabbitmq_push(TASK, QUEUE_NAME):
-    rabbit_server.queue_bind(exchange="DRAAS", queue=QUEUE_NAME, routing_key=QUEUE_NAME)
+    rabbit_push,connection = rabbit_connection()
+    rabbit_push.queue_bind(exchange="DRAAS", queue=QUEUE_NAME, routing_key=QUEUE_NAME)
 
 
     try:
-        rabbit_server.basic_publish(exchange="DRAAS",
+        rabbit_push.basic_publish(exchange="DRAAS",
                                     routing_key=QUEUE_NAME,
                                     body=json.dumps(TASK),
                                     properties=pika.BasicProperties(delivery_mode=2))
         print (f"Pushed to {QUEUE_NAME} queue successfully")
         logger.info(f"Pushed to {QUEUE_NAME} queue successfully")
+        connection.close()
         return True
     except Exception as err:
         print("***** Error While pushing task in queue Error_msg: ", err, " *****")
         logger.error(f"cannot Pushed to {QUEUE_NAME}: {err}")
-        return False
+    connection.close()
+    return False
 
 
 def push_in_wait_queue(task):
@@ -294,8 +297,11 @@ def push_in_wait_queue(task):
   
   
 def rabbitmq_queue_get(queue_name):
+    rabbit_get,connection_get = rabbit_connection()
+
+
     try:    
-        method_frame, header_frame, body = rabbit_server.basic_get(queue=queue_name, auto_ack=True)
+        method_frame, header_frame, body = rabbit_get.basic_get(queue=queue_name, auto_ack=True)
 
         if method_frame:
                        # i try this. to get dictionary from queue.  json.loads(body.decode()) 
@@ -303,13 +309,13 @@ def rabbitmq_queue_get(queue_name):
             print("Request from RabbitMQ:", message)
             logger.info('RabbitMQ queue get - Request: %s', message)
             send_logs_to_api('RabbitMQ queue get Request', 'info', settings.mid_server)
+            connection_get.close()
             return message
-        else:
-            return None    
     except Exception as err:
         logger.error('Error while getting rabbitmq queue: %s', str(err))
         send_logs_to_api(f'Error while getting rabbitmq queue: {str(err)}', 'error', settings.mid_server)
-        return None
+    connection_get.close()
+    return None
 
 def check_wait_queue():
     current_time = round(time.time())
