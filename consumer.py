@@ -171,11 +171,12 @@ def main():
                     task_set_status_and_queue(json_req, "failed")
                     # redis_server.set(taskCommandID, "failed")
                     continue
-                send_status_update(taskFromQueueRecordID,"in_progress","f'task from queue {taskFromQueue} task status {taskStatus}'")
-                if json_req["commands"] != "":
-                    req_cmd = json_req["commands"]
+                send_status_update(taskFromQueueRecordID,"in_progress",f'task from queue {taskFromQueue} task status {taskStatus}')
+                if json_req["command"] != "":
+                    req_cmd = json_req["command"]
                 else:
                     req_cmd = ""
+                logger.info(f"command to be run: {req_cmd}")
         else:
             print("Queue is empty. Waiting...")
             logger.info("Queue is empty. Waiting...")
