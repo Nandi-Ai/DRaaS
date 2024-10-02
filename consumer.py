@@ -293,7 +293,7 @@ def main():
                                 output = change_interface_mode(req_switch_ip, retrieved_user, retrieved_password, req_interface_name, req_port_mode, req_vlans)
                             logger.info(f"Switch command output: {output}")
                             send_status_update(taskFromQueueRecordID, "in_progress", output)
-                            if glv.added_vlan is not None:  # Check if a VLAN was added
+                            if glv.added_vlan:  # Check if a VLAN was added
                                 output_message = "Added VLANs: " + ", ".join(map(str, added_vlan))
                                 glv.added_vlan = None  # Reset it after displaying the message
                             else:
