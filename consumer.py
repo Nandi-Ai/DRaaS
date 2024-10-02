@@ -317,7 +317,7 @@ def main():
                                 output = f"{output_message}\n{output}"
                             else:
                                 output = f"{output}"
-                            redis_set(taskCommandID, "completed_tasks")
+                            redis_set(taskCommandID, "completed")
                             # testing                             
                             # task_sts = json.loads(redis_server.get(taskFromQueueRecordID).decode())["status"]
                             send_status_update(taskFromQueueRecordID, "completed",output)
