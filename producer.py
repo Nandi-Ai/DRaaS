@@ -118,11 +118,7 @@ def queue_push(task):
             #Active task
 
             if "active" in drStatus:   
-<<<<<<< HEAD
-                redis_server.set(api_task_command_number, drStatus)
-=======
                 redis_server.set(api_task_command_number, drStatus, ex=200)
->>>>>>> monitoring
                 if redisJobStatus is None:
                     
                     print("Aha! Found new active status")                    
@@ -177,8 +173,9 @@ def queue_push(task):
 
     except Exception as e:
         #send_logs_to_api(f'Error in redis_queue_push: {str(e)}', 'error', settings.mid_server, datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'))
+        
         logger.error('Error in redis_queue_push: %s', str(e))
-        send_logs.send_data_to_flask(1, 'Error in redis queue push',  service_name)
+        send_logs.send_data_to_flask(1, f'Error in redis queue push, {e}',  service_name)
 
 
 

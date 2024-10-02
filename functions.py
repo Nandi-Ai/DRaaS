@@ -20,14 +20,9 @@ config.read('../config/parameters.ini')
 
 
 logger = logging.getLogger(__name__)
-<<<<<<< HEAD
-
-queue_name = glv.api_queue_name
-=======
 redis_server = redis.Redis(host='localhost', port=6379, db=0)
 redis_server = redis.StrictRedis(charset="utf=8", decode_responses=True)
 api_queue_name = glv.api_queue_name
->>>>>>> monitoring
 completed_tasks = glv.completed_tasks
 failed_tasks = glv.failed_tasks
 incomplete_tasks = glv.incomplete_tasks
@@ -39,16 +34,7 @@ added_vlan = glv.added_vlan
 credential_dict = glv.credential_dict
 max_attempts = 3
 
-<<<<<<< HEAD
-redis_ip = settings.redis_ip
-redis_ip = settings.redis_port
-
-
-redis_server = redis.Redis(host=redis_ip, port=redis_port, db=0)
-redis_server = redis.StrictRedis(charset="utf=8", decode_responses=True)
-=======
 # rabbit_server.queue_declare(queue=str(api_queue_name))
->>>>>>> monitoring
 
 #SSH connection function
 class SSHClient:
