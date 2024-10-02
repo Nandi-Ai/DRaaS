@@ -39,7 +39,9 @@ def send_data_to_flask(status, message, servicename):
         "service_process_data": service_proc_data,
     }
     try:
-        response = requests.post(url, json=msg, headers=headers, timeout=5)
-        print(response.status_code, "---", response.json())
+        response = requests.get(url)
+        if response.ok:
+            response = requests.post(url, json=msg, headers=headers, timeout=2)
+            print(response.status_code, "---", response.json())
     except requests.RequestException as err:
-        print("Error while sending data to API:", err)
+        print("Unable to send data to Flask API. Exception Message: ", err)

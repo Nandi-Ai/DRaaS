@@ -74,30 +74,6 @@ def get_id_status(ID):
     return commands['result']
 
 
-    
-
-# funtion that checks if there is some stucked jobs or failed jobs 
-# def check_jobs(taskCommandID):
-#     task_status = redis_server.get(taskCommandID)
-    
-#     if task_status == "in_progress_tasks":
-#         print("task command is in progress")
-#     elif task_status == "failed_tasks":
-#         print("task command is failed")
-        
-#     else:
-#         print(f"command maybe stuck: {task_status}")
-#         redis_remove_list(taskCommandID, in_progress_tasks)
-#         return False
-    
-#     status = False
-    
-#     if status:
-#         return True
-#     else: 
-#         return False
-
-
 # Main function
 def main():
     rabbit_server.queue_declare(queue=wait_queue, durable=True)
@@ -123,19 +99,6 @@ def main():
                 if taskFromWaitQueue:
                     print("break")
 
-                # if job is stuck more than 2 minute it will try to process one more time.
-                # if stuck_jobs:
-                #     print("there is stuck jobs...")
-                #     taskFromQueue = rabbitmq_queue_get(from_api_queue)
-                #     break
-                # else:
-                #     # if job failed 10 minutes ago this will try to process one more time
-                #     failed_jobs = check_jobs(failed_tasks)
-                #     if failed_jobs:
-                #         taskFromQueue = rabbitmq_queue_get(from_api_queue)
-                        
-                #         print("there is failed jobs trying to proccess one more time")
-                #         break
             clean_redis_list()
             print("Queue is empty. Waiting...")
             logger.info("Queue is empty. Waiting...." )
@@ -279,11 +242,7 @@ def main():
                                 else:
                                     output = f"{output}"
                                 redis_server.set(taskCommandID, "completed")
-                                # testing
-                                #rabbit_server.basic_publish(exchange="DRAAS",
-                                #                            routing_key=completed_tasks,
-                                #                            body=json.dumps(json_req),
-                                #                            properties=pika.BasicProperties(delivery_mode=2))
+ 
                                 send_status_update(taskFromQueueRecordID, "completed",output)
                                 update_credential_dict(req_switch_ip, retrieved_user, retrieved_password, "success")
 
@@ -307,9 +266,7 @@ def main():
                                 output = "operation is done."
                         except Exception as error:
                             output = f"{error}"
-                            task_set_status_and_queue(json_req, "failed",output)
-                            # send_logs.send_data_to_flask(1, f'id: {taskFromQueueRecordID} failed, {error}',  service_name)
-                            
+                            task_set_status_and_queue(json_req, "failed",output)                            
                             # Update the credentials with a "failed" status if not already present
                             if req_switch_ip not in credential_dict or credential_dict[req_switch_ip]["status"] != "failed":
                                 update_credential_dict(req_switch_ip, retrieved_user, retrieved_password, "failed")
@@ -322,7 +279,6 @@ def main():
                                 output = f"{output}"
                             redis_set(taskCommandID, "completed")
                             # testing                             
-                            # task_sts = json.loads(redis_server.get(taskFromQueueRecordID).decode())["status"]
                             send_status_update(taskFromQueueRecordID, "completed",output)
                             update_credential_dict(req_switch_ip, retrieved_user, retrieved_password, "success")
 

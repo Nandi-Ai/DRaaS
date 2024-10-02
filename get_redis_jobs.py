@@ -124,8 +124,7 @@ def generate_raw_queue_status() -> json:
     for queue_name in queueConst:
         overall_status[queue_name] = get_raw_queue_data(queue_name)
         
-    # queue_status = get_rabbit_queues_status()
-    # overall_status.update(queue_status)
+
     print(overall_status)
     return overall_status
 
@@ -148,18 +147,10 @@ if __name__ == '__main__':
     while True:
         try:
             send_data_to_flask()
-            time.sleep(10)      # Sleep for 10 seconds if everything is okay
+            time.sleep(15)      # Sleep for 15 seconds if everything is okay
         except (requests.ConnectionError, requests.Timeout) as err:
             print(f"Network error occurred: {err}. Retrying in 10 seconds...")
             time.sleep(5) 
         except Exception as err:
             print(f"An unexpected error occurred: {err}. Retrying in 10 seconds...")
             time.sleep(5)
-
-
-    # while True:
-    #     try:
-    #         send_data_to_flask()
-    #         time.sleep(10)
-    #     except Exception as err:
-    #         print("error...", err)

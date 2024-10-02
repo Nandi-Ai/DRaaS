@@ -1,5 +1,5 @@
 from flask import Flask, jsonify, request
-import redis, requests, json, datetime, settings, time
+import redis, requests, json, datetime, settings
 from functions import send_logs_to_api
 
 
@@ -32,11 +32,7 @@ def send_health_monitoring_update(producer: dict, consumer: dict, redis: dict) -
             return
         try:
             answer = requests.post(update_status_url, data=payload,
-<<<<<<< HEAD
-                                headers={'Content-Type': 'application/json'}, auth=(settings.username, settings.password),timeout=3).json()
-=======
-                                headers={'Content-Type': 'application/json'}, auth=(settings.username, settings.password), timeout=5).json()
->>>>>>> monitoring
+                                headers={'Content-Type': 'application/json'}, auth=(settings.username, settings.password), timeout=1).json()
         except (requests.ConnectionError, requests.Timeout) as err:
             print(f"Network error occurred: {err}. returning None ")
             return None
