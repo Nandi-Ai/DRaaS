@@ -341,8 +341,6 @@ def check_wait_queue():
         print("No queue found in wait queue")
         return False
                 
-    
-    
 
 # Function to update the credentials dictionary with the status
 def update_credential_dict(ip, username, password, status):

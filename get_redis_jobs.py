@@ -54,70 +54,7 @@ def get_raw_queue_data(queue_name: str) -> dict:
         "queue_length": queue_length,
         "jobs": jobs
     }
-    
-def get_rabbit_queues_status():
-    queueNames = [ glv.current_task_queue, glv.failed_tasks, glv.in_progress_tasks]
-    rqueue_tasks = {} 
-    for queue_name in queueNames:  
-        try:
-            queueuHandler = rabbit_server.queue_declare(queue=queue_name, durable=True)
-            queueLength = queueuHandler.method.message_count  
-
-            print(f"Queue '{queue_name}' has {queueLength} items.")
-            print("Members:")
-            if queue_name == "fixme":
-                tasks = []
-                for jobs in queueuHandler:
-                    task_data = jobs.decode('utf-8')
-                    task = json.loads(task_data)
-                    tasks.append(task)
-                rqueue_tasks[queue_name] = {
-                    "queue_name": queue_name,
-                    "queue_length": queueLength,
-                    "jobs": tasks
-                }
-            else:
-                rqueue_tasks[queue_name] = {
-                        "queue_name": queue_name,
-                        "queue_length": queueLength,
-                        "jobs": []
-                    }
-        except redis.exceptions.RedisError as e:
-            print(f"An error occurred with queue '{queue_name}': {e}")
-    
-    return rqueue_tasks
-
-def get_redis_jobs():
-    queue_names = [ glv.current_task_queue, glv.failed_tasks, glv.in_progress_tasks]
-    redis_tasks = {} 
-    for set_name in queue_names:
-        try: 
-            members = redis_conn.smembers(set_name)  
-            set_length = redis_conn.scard(set_name)
-            print(f"Set '{set_name}' has {set_length} members.")
-            print("Members:")
-            if set_name == glv.current_task_queue:
-                tasks = []
-                for jobs in members:
-                    task_data = jobs.decode('utf-8')
-                    task = json.loads(task_data)
-                    tasks.append(task)
-                redis_tasks[set_name] = {
-                    "queue_name": set_name,
-                    "queue_length": set_length,
-                    "jobs": tasks
-                }
-            else:
-                redis_tasks[set_name] = {
-                        "queue_name": set_name,
-                        "queue_length": set_length,
-                        "jobs": []
-                    }
-        except redis.exceptions.RedisError as e:
-            print(f"An error occurred with set '{set_name}': {e}")
-    
-    return redis_tasks
-        
+            
 def generate_raw_queue_status() -> json:
     queueConst = [ glv.api_queue_name, glv.completed_tasks]
     overall_status = {}
