@@ -9,7 +9,8 @@ base_directory="/opt/DRaaS"
 config_file="${base_directory}/config/draas_config.ini"
 # Check if the configuration file exists
 if [ -f "$config_file" ]; then
-    echo "Config file found" >> "$log_file"
+    echo "found config file: draas_config.ini" >> "$log_file"
+    source "$config_file"
 else
     echo "New installation detected. Creating necessary directories..." >> "$log_file"
     # Create the config directory
@@ -31,11 +32,13 @@ else
     sudo chmod a+rw ${backup_dir} -R
 fi
 
-sudo apt-get install python3-venv
-get_project_info() 
+sudo apt-get install python3-venv -y
+set_project_info() 
 {
-    project_dir=$(dirname "$(dirname "$(realpath "$0")")")
-    echo "project_dir=${project_dir}" >> "$config_file"
+    if [ -z "$project_dir" ]; then
+    	project_dir=$(dirname "$(dirname "$(realpath "$0")")")
+    	echo "project_dir=${project_dir}" >> "$config_file"
+    fi
     if python3 -V 2>&1| grep -q "Python 3"; then
 		echo "Python 3 is installed" >> "$log_file"
     else
@@ -45,7 +48,6 @@ get_project_info()
 
     # Activate virtual environment if it exists
     if [ -f "$config_file" ]; then
-        source $config_file
         if [ -n "$venv_dir" ]; then
             echo "Config file is existing along with venv dir: $venv_dir" >> "$log_file"
             source "$venv_dir/bin/activate"
@@ -73,7 +75,7 @@ ask_user_about_username() {
 # Function to check and create the virtual environment
 create_venv() {
     if [ -f "$config_file" ]; then
-        source "$config_file"
+        # source "$config_file"
         if [ -z "$venv_dir" ]; then
             echo "venv_dir not specified in $config_file. Using $base_directory directory $venv_dir." >> "$log_file"
             venv_dir="$base_directory/venv"
@@ -97,15 +99,14 @@ create_venv() {
 
 # Check if the project information is saved, otherwise ask the user
 if [ -f "$config_file" ]; then
-    source $config_file
     if [ -z "$project_dir" ] || [ -z "$user" ] || [ -z "$venv_dir" ]; then
         echo "One or more parameters (project directory, user, MID Server, or venv directory) are missing in the config file. Please provide the missing information."
-        get_project_info
+        set_project_info
         ask_user_about_username
         
     fi
 else
-    get_project_info
+    set_project_info
 fi
 
 echo "Project directory: $project_dir" >> "$log_file"

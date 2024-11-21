@@ -1,39 +1,30 @@
-import time, sys, threading 
-from unittest import result; import requests, json, re, os; import logging
-from datetime import datetime, timedelta; 
+import time, sys, threading; from unittest import result; import requests, json, re, os; import logging
+from datetime import datetime; 
 import configparser,confparser; import paramiko; from ntc_templates.parse import parse_output
 from netmiko import ConnectHandler; import json; from dotenv import load_dotenv; from socket import *
 import glv; import redis
 load_dotenv()
-from time import sleep
+from time import sleep, time
 import settings; from settings import *; settings.init()
-import send_logs
-from rabbitmq import *
 
+from rabbitmq import *
 rabbit_server = rabbit_connection()
 logging.getLogger('pika').setLevel(logging.CRITICAL)
 
 config = configparser.ConfigParser()
 config.sections()
-config.read('../config/parameters.ini')
-# config.read('./config/parameters.ini')
+config.read('./config/parameters.ini')
 
 logger = logging.getLogger(__name__)
-redis_server = redis.Redis(host='localhost', port=6379, db=0)
-redis_server = redis.StrictRedis(charset="utf=8", decode_responses=True)
-api_queue_name = glv.api_queue_name
+redis_server = redis.Redis()
+queue_name = glv.api_queue_name
 completed_tasks = glv.completed_tasks
 failed_tasks = glv.failed_tasks
-incomplete_tasks = glv.incomplete_tasks
 in_progress_tasks = glv.in_progress_tasks
-wait_queue = glv.wait_queue
 update_req_url = settings.url + "/SetCommandStatus"
 managment_logs_url = settings.url + "/postSwitchManagmentLogs"
 added_vlan = glv.added_vlan
 credential_dict = glv.credential_dict
-max_attempts = 3
-
-# rabbit_server.queue_declare(queue=str(api_queue_name))
 
 #SSH connection function
 class SSHClient:
@@ -53,18 +44,17 @@ class SSHClient:
         self.connection.enable()
 
     def try_connect(self,req_id=None):
-        # from consumer import send_status_update
+        from consumer import send_status_update
         attempts = 0
         while attempts < self.MAX_RETRIES:
-            attempts += 1
             try:
                 self.connection = ConnectHandler(**self.connection_params)
                 return True
             except Exception as e:
-                print(f"Failed to connect. Attempt {attempts}/{self.MAX_RETRIES}. Error: {e}")
-                send_status_update(req_id, "in_progress", f"Attempt {attempts}/{self.MAX_RETRIES} failed.")
-                if (attempts < self.MAX_RETRIES):
-                    sleep(10)  # Wait for 10 seconds before retrying
+                print(f"Failed to connect. Attempt {attempts+1}/{self.MAX_RETRIES}. Error: {e}")
+                send_status_update(req_id, "Active", f"Attempt {attempts+1}/{self.MAX_RETRIES} failed.")
+                sleep(10)  # Wait for 10 seconds before retrying
+                attempts += 1
         return False
 
     def close_connection(self):
@@ -122,7 +112,6 @@ def get_device_type(ssh_client):
         raise ValueError("Unsupported device type detected.")
 
 def run_command_and_get_json(ip_address, username, password, command):
-    logger.info(f"%%%% run_command_and_get_json {ip_address} {command}")
     # Create an instance of the SSHClient class
     ssh_client = SSHClient(ip_address, username, password)
     try:
@@ -131,7 +120,6 @@ def run_command_and_get_json(ip_address, username, password, command):
 
         # Determine device type
         device_type = get_device_type(ssh_client)
-        logging.info(f"run_command_and_get_json device - {device_type}")
 
         if device_type == "nexus":
             if 'show run' in command:
@@ -150,222 +138,138 @@ def run_command_and_get_json(ip_address, username, password, command):
                 output = ssh_client.exec_command(command, use_textfsm=True)
                 json_data = json.dumps(output, indent=2)
         else:
-            logging.error("error - Unsupported device type detected.")
-            error_msg =  { "error: Unsupported device type detected." }
-            return json.dumps(error_msg)
-        logging.info(f"{output}")
+            raise ValueError("Unsupported device type detected.")
+
         return json_data
 
     except (paramiko.AuthenticationException, paramiko.SSHException, ValueError) as error:
         # Raise an exception if there is an error during the connection or if unsupported device type detected
-        error_msg =  { "error": f"{error}" }
-        return json.dumps(error_msg)
+        raise error
 
     finally:
         # Close the SSH connection when done
         ssh_client.close_connection()
 
-
-
-def notify(task, status, msg =""):
-    recordID=task["record_id"]
-    taskCommandID=task["command_number"]
-    if status == "failed":
-        send_status_update(recordID, "failed", msg)
-        send_logs.send_data_to_flask(0, f' {msg}  Task command id {taskCommandID}',  "consumer")
-
-
-def get_task_status(task):
-    task = json.loads(task)
-    task_command_id=task["command_number"]
-    redisJobStatus = redis_server.get(task_command_id)
-    return redisJobStatus
-
-
-def redis_set(taskCommandID, taskStatus):
-    print(f"redis_set taskCommandID: {taskCommandID} taskStatus: {taskStatus}")
-    redis_server.set(taskCommandID,taskStatus)
-
-def clean_redis_list():
-    allTasksinList = redis_server.lrange("inprogress_list", 0, -1)
-    for task in allTasksinList:
-           taskCommandFromList = task["command_number"]
-           redisJobStatus = redis_server.get(taskCommandFromList) 
-           if redisJobStatus is None:
-               redis_remove_list(task, "incomplete")
-               
-               
-
-
-def redis_remove_list(fullTaskJson="", task_status="", output = ""):
-        taskCommandID = fullTaskJson["command_number"]
-        taskFromQueueRecordID = fullTaskJson["record_id"]
-        print(f"redis_remove_list {taskCommandID} {taskFromQueueRecordID}")
-
-        allTasksinList = redis_server.lrange("inprogress_list", 0, -1)
-        for task in allTasksinList:
-            taskCommandIDL = task["command_number"]
-            if taskCommandIDL == taskCommandID:
-                redis_server.lrem("inprogress_list", 10, task)
-                print(f"removed {taskCommandID} from redis list")
-                if task_status == "in_progress" or task_status == "incomplete":
-                    rabbitmq_push(task, incomplete_tasks)
-                    send_status_update(taskFromQueueRecordID, "incomplete", "taking too long to process")
-                    send_logs.send_data_to_flask(0, f'task {taskCommandID} is stuck. pushing to incomplete_tasks',  "consumer")
-                if task_status == "failed":
-                    print("found failed removing")
-                    # notify(taskCommandIDL, "failed", "task is failed")
-                    send_status_update(taskFromQueueRecordID, "failed", output)
-                    send_logs.send_data_to_flask(0, f'task {taskCommandID} failed',  "consumer")
-                if task_status == "completed":
-                    print("task completed ")
-                    # notify(taskCommandIDL, "failed", "task is failed")
-                    send_status_update(taskFromQueueRecordID, "completed", output)
-                    send_logs.send_data_to_flask(0, f'task {taskCommandID} completed',  "consumer")
-
-                return True
-            
-        print(f"didnt find {taskCommandID} in list")
-        return False
-
-def task_set_status_and_queue(fullTaskJson, taskStatus="", output=""):
-    taskCommandID = fullTaskJson["command_number"]
-    taskFromQueueRecordID = fullTaskJson["record_id"]
-    print(f"inside task_set_status_and_queue taskCommandID: {taskCommandID} taskStatus: {taskStatus} " )
+# Function to set a value in Redis
+def redis_set(KEY="", VALUE=""):
     try:
-        if taskStatus == "failed":
-            print("task: failed")
-            send_status_update(taskFromQueueRecordID, taskStatus, output)
-            redis_server.set(taskCommandID, taskStatus)
-            redis_remove_list(taskCommandID, taskStatus, output)
-            send_logs.send_data_to_flask(0, output,  "consumer")
-        elif taskStatus == "in_progress":
-            print(f"task: {taskCommandID} in_progress")
-            redis_server.lpush(in_progress_tasks, json.dumps(fullTaskJson))
-            # rabbitmq_push(fullTaskJson, in_progress_tasks)
-            redis_server.set(taskCommandID, taskStatus, ex=600) # 10 minute
-            send_status_update(taskFromQueueRecordID, "in_progress")
-            print(f"***** taskCommandID: {taskCommandID} is set {taskStatus} and pushed redis in_progress queue: *****")
+        isSet = redis_server.set(KEY, VALUE)
+        if isSet:
+          print(f"Pushed {KEY} Successfully")
+        logger.info('Redis set - Key: %s, Value: %s', KEY, VALUE)
+        send_logs_to_api(f'Redis set - Key: {KEY}, Value: {VALUE}', 'info', settings.mid_server)
+
+        # Check the status and push the task to the appropriate queue
+        task_info = redis_server.get(KEY)
+        if task_info:
+            if task_info == "completed":
+                redis_server.rpush(completed_tasks, KEY)
+            elif task_info == "failed":
+                redis_server.rpush(failed_tasks, KEY)
+            elif (task_info == "active") or (task_info == "in_progress"):
+                redis_server.rpush(in_progress_tasks, KEY)
         else:
-            print(f"trying to set redis taskCommandID: {taskCommandID} to {taskStatus}")
-            redis_set(taskCommandID, taskStatus)
-            
-        logger.info('Redis set - Key: %s, Value: %s', taskCommandID, taskStatus)
-        send_logs_to_api(f'Redis set - Key: {taskCommandID} Value: {taskStatus}', 'info', settings.mid_server)
+            logger.warning('No information found for key: %s', KEY)
+            send_logs_to_api(f'No information found for key: {KEY}', 'warning', settings.mid_server, datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'))
+
+    except Exception as e:
+        send_logs_to_api(f'Error in updating API', 'error', settings.mid_server, datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), '123')
+        logger.error('Error in redis_set: %s', str(e))
+
+
+
+
+# testing
+def rabbitmq_push(task, queue_name=""):
+    try:
+
+        target_queue = None
+        if queue_name == "completed":
+            target_queue = completed_tasks
+        elif queue_name == "failed":
+            target_queue = failed_tasks
+        elif queue_name == "active" or queue_name == "in_progress":
+            target_queue = in_progress_tasks
         
-    except Exception as err:
-        send_logs_to_api(f'Error in updating API', 'error', settings.mid_server)
-        logger.error('Error in redis_set: %s', str(err))
-
-
-
-def rabbitmq_push(TASK, QUEUE_NAME):
-    rabbit_push,connection = rabbit_connection()
-    rabbit_push.queue_bind(exchange="DRAAS", queue=QUEUE_NAME, routing_key=QUEUE_NAME)
-
-
-    try:
-        rabbit_push.basic_publish(exchange="DRAAS",
-                                    routing_key=QUEUE_NAME,
-                                    body=json.dumps(TASK),
-                                    properties=pika.BasicProperties(delivery_mode=2))
-        print (f"Pushed to {QUEUE_NAME} queue successfully")
-        logger.info(f"Pushed to {QUEUE_NAME} queue successfully")
-        connection.close()
-        return True
-    except Exception as err:
-        print("***** Error While pushing task in queue Error_msg: ", err, " *****")
-        logger.error(f"cannot Pushed to {QUEUE_NAME}: {err}")
-    connection.close()
-    return False
-
-
-def push_in_wait_queue(task):
-    time = round(time.time())
-    if task["attempt"]:
-        attempts = task["attempt"]
-        if attempts > max_attempts:
-            notify(task, "failed")
-            return False
+        if target_queue:
+            rabbit_server.basic_publish(
+                exchange='',
+                routing_key=target_queue,
+                body=json.dumps(task),
+                properties=pika.BasicProperties(
+                    delivery_mode=2  # Make message persistent
+                )
+            )
+            # logger.info('RabbitMQ set - Key: %s, Value: %s', KEY, VALUE)
+            print(f"Pushed {task} with value {queue_name} to {target_queue} Successfully")
+            # send_logs_to_api(f'RabbitMQ set - Key: {KEY}, Value: {VALUE}', 'info', 'mid_server')
         else:
-          task["attempt"] = attempts + 1
-    else: 
-        jsonToAppend = {
-            "time": time,
-            "attempt": 1
-        }
-    task.update(jsonToAppend)
-    rabbitmq_push(task, wait_queue)
-    return task
-  
-  
-def rabbitmq_queue_get(queue_name):
-    rabbit_get,connection_get = rabbit_connection()
-
-
-    try:    
-        method_frame, header_frame, body = rabbit_get.basic_get(queue=queue_name, auto_ack=True)
-
-        if method_frame:
-                       # i try this. to get dictionary from queue.  json.loads(body.decode()) 
-            message = body.decode()
-            print("Request from RabbitMQ:", message)
-            logger.info('RabbitMQ queue get - Request: %s', message)
-            send_logs_to_api('RabbitMQ queue get Request', 'info', settings.mid_server)
-            connection_get.close()
-            return message
+            logger.warning('Invalid state for %s', queue_name)
+            # send_logs_to_api(f'Invalid task state: {VALUE}', 'warning', 'mid_server')
     except Exception as err:
-        logger.error('Error while getting rabbitmq queue: %s', str(err))
-        send_logs_to_api(f'Error while getting rabbitmq queue: {str(err)}', 'error', settings.mid_server)
-    connection_get.close()
-    return None
+        # logger.error('Failed to set in RabbitMQ: %s', str(err))
+        pass
+        # send_logs_to_api(f'Failed to set in RabbitMQ: {str(err)}', 'error', 'mid_server')
 
-def check_wait_queue():
-    current_time = round(time.time())
 
-    task = rabbitmq_queue_get(wait_queue)
-    if task:
-        TaskTime=task["time"]
-        attempts=task["attempt"]
-        if (current_time - TaskTime > 300) :
-            task["attempt"] = attempts + 1
-            return task
+def get_task_status_by_req_id(json_req):
+    queues = [queue_name, completed_tasks, failed_tasks, in_progress_tasks]    
+
+    for method_frame, properties, body in rabbit_server.consume(queue=queue_name, inactivity_timeout=1):
+        if body:
+            task = json.loads(body)
+            if task.get('req_id') == json_req:
+                status = task.get('status')
+                print(f"Task found: {task}")
+                print(f"Task status: {status}")
+                rabbit_server.basic_ack(method_frame.delivery_tag)  # Acknowledge the message
+                return status  # Return the found status
         else:
-            result = push_in_wait_queue(task)
-            if result:
-                return result
+            break  # No more messages in the queue
+    print(f"Task with req_id {json_req} not found in queue: {queue_name}")
+    # return Nonessages in queue: {rq}")
+
+
+# TODO Check if there is built in option to check on all queues 
+def search_task_in_queues(json_req):
+    queues = [queue_name, completed_tasks, failed_tasks, in_progress_tasks]
+
+    for rq in queues:        
+        while True:
+            method_frame, header_frame, body = rabbit_server.basic_get(queue=rq, auto_ack=False)
+            if method_frame:
+                try:
+                    task = json.loads(body) 
+                    print(task)
+                    if task.get("record_id") == json_req.get("record_id"):
+                        print(f"Found matching task in {rq}: {task}")
+                        rabbit_server.basic_ack(delivery_tag=method_frame.delivery_tag)
+                        status = json_req.get("dr_status")
+                        return task, rq, status
+                except json.JSONDecodeError as err:
+                    print(f"Error decoding JSON from {rq}: {err}")
             else:
-                return False
-    else:
-        print("No queue found in wait queue")
-        return False
-                
-    
-    
+                break            
+    return None, None, None
+
+
+
+
+
 
 # Function to update the credentials dictionary with the status
 def update_credential_dict(ip, username, password, status):
-    timestamp = time.time()
+    timestamp = time()
     credential_dict[ip] = {"timestamp": timestamp, "status": status, "user": username, "pass": password}
 
 # Function to send a status or update to ServiceNow API
-def send_status_update(taskRecordID, STATUS, OUTPUT=""):
+def send_status_update(ID, STATUS, OUTPUT):
     status = STATUS.lower()
-    print(f"send_status_update {taskRecordID}, STATUS: {status}, OUTPUT: {OUTPUT}")
-    logger.info(f"send_status_update - {taskRecordID}, STATUS: {status}, OUTPUT: {OUTPUT}")
-    payload = json.dumps({"command_id": f"{taskRecordID}", "command_status": f"{status}", "command_output": f"{OUTPUT}"})
-    for i in range(3):
-        try:
-            response = requests.post(update_req_url, data=payload, headers={'Content-Type': 'application/json'},
-                           auth=(settings.username, settings.password), timeout=5)
-            break
-        except requests.Timeout:
-            print ("Timeout connecting to api -  Timeout connecting to api")
-            logger.error("send_status_update ")
-        except requests.ConnectionError:
-            print ("Connection error to S/N API")
-            logger.error("send_status_update - Connection error to S/N API")
-    valid_response_code(response.status_code, taskRecordID)
+    print(f"{ID}, STATUS: {status}, OUTPUT: {OUTPUT}")
+    payload = json.dumps({"command_id": f"{ID}", "command_status": f"{status}", "command_output": f"{OUTPUT}"})
+    response = requests.post(update_req_url, data=payload, headers={'Content-Type': 'application/json'},
+                           auth=(settings.username, settings.password))
+    valid_response_code(response.status_code, ID)
 
 # Initialize the message counter
 message_counter = 0
@@ -381,9 +285,9 @@ def send_logs_to_api(message, severity, source):
             "source": source,
             "timestamp": timestamp,
             "message_id": message_id})
-        print(f"send_logs_to_api: {payload}")
+        print(payload)
         answer = requests.post(managment_logs_url, data=payload,
-                               headers={'Content-Type': 'application/json'}, auth=(settings.username, settings.password), timeout=3).json()
+                               headers={'Content-Type': 'application/json'}, auth=(settings.username, settings.password)).json()
     except Exception as e:
         logger.error("Error occurred while sending log to API: %s", str(e))
 
@@ -392,7 +296,7 @@ def valid_response_code(statusCode,ID):
         print("Api is not accesble. StatusCode is:", statusCode)
         logger.error('Error in updating API')
         send_logs_to_api(f'Error in updating API', 'error', settings.mid_server)
-        redis_server.rpush(incomplete_tasks, ID)
+        redis_server.rpush(incompleted_tasks, ID)
 
 #Not Working Function - Fix
 def send_successORfailed_status(req_id, status_message=None, output_message=None, error=None, output=None, req_switch_ip=None, retrieved_user=None, retrieved_password=None):
@@ -402,7 +306,7 @@ def send_successORfailed_status(req_id, status_message=None, output_message=None
             output = f"{output_message}\n{output}"
         else:
             output = f"{output}"
-        redis_set(req_id, "completed")
+        redis_set(req_id, "completed", output)
         task_status = json.loads(redis_server.get(req_id).decode())["status"]
         send_status_update(req_id, task_status, output)
         update_credential_dict(req_switch_ip, retrieved_user, retrieved_password, "success")
@@ -414,23 +318,14 @@ def send_successORfailed_status(req_id, status_message=None, output_message=None
         if req_switch_ip not in credential_dict or credential_dict[req_switch_ip]["status"] != "failed":
             update_credential_dict(req_switch_ip, retrieved_user, retrieved_password, "failed")    
 
-def send_gaia_status(fullTaskJson, status_message=None, output=None, error=None, req_cmd=None, destination=None, gateway=None, req_vlans=None,req_interface_name=None):
-    taskCommandID = fullTaskJson["command_number"]
-    taskRecordID = fullTaskJson["record_id"]
-    print(f"send_gaia_status taskCommandID:{taskCommandID} status_message {status_message}")
+def send_gaia_status(req_id, status_message=None, output=None, error=None, req_cmd=None, destination=None, gateway=None, req_vlans=None,req_interface_name=None):
     if status_message == "status: success":
-        redis_set(taskCommandID, "completed")
-        task_status = "completed"
-        print(f"send_gaia_status: {task_status}")
-        redis_remove_list(fullTaskJson, "completed", output)
-        send_status_update(taskRecordID, "completed", output)
-
-        # send_status_update(taskCommandID, task_status, output)
+        redis_set(req_id, "completed", output)
+        task_status = json.loads(redis_server.get(req_id).decode())["status"]
+        send_status_update(req_id, task_status, output)
 
     elif status_message == "status: failed":
-        if not req_cmd:
-            output = f"{status_message} Could not find route for {destination} and gateway {gateway if gateway else 'None'}: {error}"
-        elif req_cmd.lower() == "add route":
+        if req_cmd.lower() == "add route":
             output = f"{status_message} Error adding route for {destination} and gateway {gateway if gateway else 'None'}: {error}"
         elif req_cmd.lower() == "delete route":
             output = f"{status_message} Error removing route for {destination} and gateway {gateway if gateway else 'None'}: {error}"
@@ -440,8 +335,8 @@ def send_gaia_status(fullTaskJson, status_message=None, output=None, error=None,
             output = f"{status_message} Error removing VLANs {str(req_vlans)} from interface {req_interface_name}: {error}"
         else:
             output = f"{status_message} Error: {error}"
-        redis_remove_list(fullTaskJson, "failed", output)
-        send_status_update(fullTaskJson, "failed", output)
+        redis_set(req_id, "failed", output)
+        send_status_update(req_id, "failed", output)
 
 def check_privileged_connection(connection):
     """
@@ -455,7 +350,7 @@ def check_privileged_connection(connection):
         flush(connection)  # flush everything from before
         connection.shell.sendall('\n')
 
-        sleep(.3)
+        time.sleep(.3)
         data = str(connection.shell.recv(buffer_size), encoding='utf-8').strip()
         flush(connection)  # flush everything after (just in case)
 
@@ -483,21 +378,21 @@ def change_interface_mode(ip_address, username, password, interface, mode, vlan_
     connection = ssh_new(ip_address, username, password)
     try:
         connection.open_shell()
-        sleep(1)
+        time.sleep(1)
 
         if not check_privileged_connection(connection):
             if enable_pass is not None:
                 connection.send_shell('enable')
-                sleep(1)
+                time.sleep(1)
                 connection.send_shell(enable_pass)
-                sleep(1)
+                time.sleep(1)
             else:
                 raise ValueError('enable_pass is missing, and SSH connection is not privileged')
 
         connection.send_shell('conf terminal')
-        sleep(1)
+        time.sleep(1)
         connection.send_shell(f'interface {interface}')
-        sleep(1)
+        time.sleep(1)
 
         # Remove any existing configuration related to the opposite mode
         if mode == 'trunk':
@@ -539,7 +434,7 @@ def change_interface_mode(ip_address, username, password, interface, mode, vlan_
         connection.send_shell('exit')
         connection.send_shell('exit')
         connection.send_shell('write memory')  # Save the configuration to memory
-        sleep(10)  # Give it some time to save the configuration
+        time.sleep(10)  # Give it some time to save the configuration
         connection.close_connection()
 
     except (paramiko.AuthenticationException, paramiko.SSHException) as error:
