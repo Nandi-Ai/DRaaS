@@ -1,0 +1,68 @@
+version: "3.2"
+services:
+  redis:
+    image: redis:latest
+    container_name: 'redis'
+    ports:
+        - 6379:6379
+    networks:
+        - rabbitmq_net
+
+  flaskapi:
+    image: flaskapi:latest
+    container_name: 'flaskapi'
+    ports:
+        - 5050:5050
+    networks:
+        - rabbitmq_net
+
+  producer:
+    depends_on:
+      redis:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+
+    container_name: 'producer'
+    image: producer:latest
+    networks:
+        - rabbitmq_net
+
+  consumer:
+    image: consumer:latest
+    deploy:
+      mode: replicated
+      replicas: 3
+    depends_on:
+      redis:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    networks:
+        - rabbitmq_net
+
+  rabbitmq:
+    image: rabbitmq:management
+    container_name: 'rabbitmq'
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+        # test: D["CMD","curl", "-f","http://localhost5672"]
+      interval: 20s
+      timeout: 20s
+      retries: 3
+    ports:
+        - 5672:5672
+        - 15672:15672
+    volumes:
+        - ~/.docker-conf/rabbitmq/data/:/var/lib/rabbitmq/
+        - ~/.docker-conf/rabbitmq/log/:/var/log/rabbitmq
+    networks:
+        - rabbitmq_net
+
+networks:
+  rabbitmq_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.17.18.0/24
+          gateway: 10.17.18.1

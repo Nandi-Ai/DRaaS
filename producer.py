@@ -7,17 +7,21 @@ from datetime import datetime
 import glv; from glv import Enabled
 import settings
 from functions import *
+
+import send_logs
+from rabbitmq import *
+
+
 settings.init()
 
-redis_server = redis.Redis(host='localhost', port=6379, db=0)
+service_name = "producer"
 
-# Set the value of Enabled to Redis when the script starts
-redis_server.set("Enabled", int(glv.Enabled))
+rabbit_server, connection = rabbit_connection()
 
-queue_name = glv.queue_name
+api_queue_name = glv.api_queue_name
 failed_tasks=glv.failed_tasks
 completed_tasks=glv.completed_tasks
-incompleted_tasks = glv.incompleted_tasks
+in_progress_tasks = glv.in_progress_tasks
 switch_info_url = settings.switch_info_url
 get_cmds_url = settings.url + "/getCommands"
 update_req_url = settings.url + "/SetCommandStatus"
@@ -45,10 +49,9 @@ except ImportError:
 
 def get_requests():
     commands = requests.post(get_cmds_url, headers={'Content-Type': 'application/json'}, auth=(settings.username, settings.password)).json()
-    print (f"Got from commands from API: {commands['result']}")
     return commands['result']
 
-def send_health_monitoring_update (mid_name, items_in_queue, items_in_process, items_failed, items_incomplete, Timestamp):
+def send_health_monitoring_update (mid_name, items_in_queue, items_in_process, items_failed, in_progress_tasks, Timestamp):
     try:
         payload = json.dumps(
             {
@@ -56,7 +59,7 @@ def send_health_monitoring_update (mid_name, items_in_queue, items_in_process, i
                 "items_in_queue": items_in_queue,
                 "items_in_process": items_in_process,
                 "items_failed": items_failed,
-                "items_incomplete": items_incomplete,
+                "in_progress_tasks": in_progress_tasks,
                 "timestamp": Timestamp
             })
         print(payload)
@@ -68,10 +71,10 @@ def send_health_monitoring_update (mid_name, items_in_queue, items_in_process, i
         
         answer = requests.post(update_status_url, data=payload,
                                headers={'Content-Type': 'application/json'}, auth=(settings.username, settings.password)).json()
-        #send_logs_to_api(f'Sended info to send_health_monitoring_update: {payload}', 'info', settings.mid_server, datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'), '123')
     except Exception as e:
         send_logs_to_api(f'Error in send_health_monitoring_update: {str(e)}', 'error', settings.mid_server, datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'))
         logger.error('Error in send_health_monitoring_update: %s', str(e))
+        
 
 def cleanup_redis():
     # Cleanup failed tasks
@@ -83,82 +86,87 @@ def cleanup_redis():
             if task:
                 redis_server.delete(task)
 
-def redis_queue_push(task):
-    record_id=task["record_id"]
-    print(f"record_id: {record_id}")
+def queue_push(task):
+    api_task_record_id=task["record_id"]
+    api_task_command_number=task["command_number"]
+    print(f"api_task_record_id: {api_task_record_id} {api_task_command_number} ")
+    redisJobStatus = redis_server.get(api_task_command_number)
+    
+    print("Assigned Job status ", api_task_command_number)
+    print("Redis job status: ", redisJobStatus)
+    drStatus=task['dr_status']
+
     try:
-            if bool(re.search('(active|failed)', task["dr_status"])):
-                print(task["record_id"])
-                job_status = redis_server.get(task["record_id"])
-                print("job_status: ",job_status)
-                print("recieved task:",task)
+        print(f"DR Status: {drStatus}")
+        if bool(re.search('(active|in_progress|queued)', drStatus)):
+            print("task S/N status " ,drStatus)
 
-                if job_status is not None and job_status.strip():
-                    try:
-                        job_status=json.loads(job_status.decode())
-                    except json.JSONDecodeError as json_error:
-                        logger.error("Error decoding JSON for record_id: %s. Error: %s", record_id, str(json_error))
-                        return  # Exit the function if JSON decoding fails
+            send_logs.send_data_to_flask(0, f'recived task {task}', service_name) 
+            #Active task
+            if "active" in drStatus:   
+                redis_server.set(api_task_command_number, drStatus, ex=200)
+                if redisJobStatus is None:
                     
-                    if "completed" in job_status["status"]:
-                        print("completed")
-                        output = re.sub("      ", "\n", job_status["output"])
-                        send_status_update(task["record_id"], job_status["status"], output)
-                        redis_server.rpush(completed_tasks, str(task))
-
-                    #Active task
-                    elif "active" in job_status["status"]:
-                        print(f"Job status is {job_status} waiting to be executed")
-                        redis_server.rpush(queue_name, str(task))
-
-                    #failed task
-                    if task["record_id"] not in [json.loads(t)["record_id"] for t in redis_server.lrange(failed_tasks,0,-1)]:
-                        redis_server.rpush(failed_tasks, json.dumps(task))
-
+                    print("Aha! Found new active status")                    
+                    send_logs.send_data_to_flask(0, f'job status is active...  {task["dr_status"]}',  service_name)                                                                
+                    print(f"Job {api_task_record_id} pushed to queue and waiting to be executed")
+                    # redis_server.rpush(queue_name, str(task))
+                    # pushing tasks inside rabbitmq 
+                    if rabbitmq_push(task, api_queue_name):
+                        send_status_update(api_task_record_id,"queued","Pushed to Queue")
+                        redis_server.set(api_task_command_number, drStatus, ex=200)
+                    else:
+                        send_status_update(api_task_record_id,"queued","Error while pushing to Queue")
+                    print(f"Job {api_task_record_id} pushed to queue {api_queue_name} and waiting to be executed")
+                    return
                 else:
-                     logger.warning("Job status is empty or None for record_id: %s", task["record_id"])
-                    #  print(f"else: {job_status}")
-                    #  redis_server.rpush(queue_name, str(task))
-                    #  redis_server.set(record_id, "active")
-                    #  logger.info('Added %s to queue', task["record_id"])
-                    #  print(f'added {task["record_id"]} to queue')
+                    if redisJobStatus not in drStatus:
+                        send_status_update(api_task_record_id, redisJobStatus, f"Job exists on cache as {redisJobStatus}")
+                    
+            # If found this job on Redis what to do
+            if redisJobStatus is not None:
+                print("redisJobStatus is not empty, job exists on Redis: ", redisJobStatus)
+                
+                print("Job discarded")
+            elif "queued" in drStatus or "in_progress" in drStatus:
+                print("requeued job counld not find in redis")
+                redis_server.set(api_task_command_number, "active", ex=200)
+                if rabbitmq_push(task, api_queue_name): 
+                    send_status_update(api_task_record_id,drStatus,"Pushed to Queue again")
+                else:
+                    send_status_update(api_task_record_id,drStatus,"Error while pushing to Queue again")
+        
+            else:
+                print("Job exists on redis, quitting")
+                logger.warning(f"Job status is {drStatus} or None for record_id: {api_task_command_number}")
+                send_logs.send_data_to_flask(2, 'waiting job status is empty or none record_id',  service_name)
+         
+        else:
+          # print normal output for debug
+          print(f'** ** did not match task status is {task["dr_status"]}')
+          print("Job was discarded ** ** **")
 
-    except Exception as e:
-        #send_logs_to_api(f'Error in redis_queue_push: {str(e)}', 'error', settings.mid_server, datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'))
+    except Exception as e:      
         logger.error('Error in redis_queue_push: %s', str(e))
+        send_logs.send_data_to_flask(1, f'Error in redis queue push, {e}',  service_name)
+
 
 
 last_cleanup_time = None
 if __name__ == "__main__":
     while True:
+        # redis_server = redis.Redis(host='redis', port=6379, db=0)
         enabled_value = redis_server.get("Enabled")
-        if enabled_value and not bool(int(enabled_value.decode())):
-            logger.info("Processing is disabled. Waiting for 'Enabled' to be True.")
-            send_logs_to_api(f'Processing is disabled. Waiting for Enabled to be True.', 'info', settings.mid_server, datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'))
-            sleep(5)
-            continue
-
-        #if last_cleanup_time is None or (datetime.now() - last_cleanup_time).seconds >= 3600:
-        #    cleanup_redis()
-        #    send_logs_to_api(f'Cleaning up the failed redis queue', 'info', settings.mid_server, datetime.now().strftime('%d/%m/%Y %I:%M:%S %p'))
-        #    last_cleanup_time = datetime.now()
-
         tasks = get_requests()
-
+        send_logs.send_data_to_flask(0, 'Getting Tasks...',  service_name)
+        print("Read task batch")
+        print("***************")
+        print("***************")
+        print("")
         for task in tasks:
+            print(settings.mid_server)
             if task['mid_name'] == settings.mid_server:
-                record_id=task["record_id"]
-                # Push task to the Redis queue
-                redis_queue_push(task)
-    
-        tasks_for_mid_server = [task for task in tasks if task['mid_name'] == settings.mid_server]
-        items_in_queue = len(tasks_for_mid_server)
-        items_in_progress = sum(1 for task in tasks_for_mid_server if task.get('dr_status') == 'active')
-        items_failed = redis_server.llen(failed_tasks)
-        items_incomplete = redis_server.llen(incompleted_tasks)
-        Timestamp = datetime.now().strftime('%d/%m/%Y %I:%M:%S %p')
-
-        logger.info("%s, %s, %s, %s, %s, %s", settings.mid_server, items_in_queue, items_in_progress, items_failed, items_incomplete, Timestamp)        
-
-        send_health_monitoring_update(settings.mid_server, items_in_queue, items_in_progress, items_failed, items_incomplete, Timestamp)
+                queue_push(task)
+                
+        print("***************")
         sleep(10)
